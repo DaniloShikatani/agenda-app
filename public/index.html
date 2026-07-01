@@ -354,16 +354,6 @@ tr:hover td { background:var(--bg); }
               <option value="">Todas</option>
             </select>
           </div>
-          <div>
-            <label class="form-label" style="margin-bottom:4px">Status</label>
-            <select class="form-select" id="f-status" style="width:170px" onchange="loadEntries()">
-              <option value="">Todos</option>
-              <option value="pendente">Pendente</option>
-              <option value="concluido">Concluído</option>
-              <option value="biomedica_faltou">Biomédica faltou</option>
-              <option value="paciente_cancelou">Paciente cancelou</option>
-            </select>
-          </div>
           <button class="btn btn-ghost btn-sm" onclick="clearFilters()">Limpar</button>
         </div>
       </div>
@@ -1072,7 +1062,6 @@ async function loadEntries() {
   const start   = document.getElementById('f-start').value;
   const end     = document.getElementById('f-end').value;
   const bid     = document.getElementById('f-biomedica').value;
-  const st      = document.getElementById('f-status').value;
   const patient = document.getElementById('f-patient').value.trim();
   const plano   = document.getElementById('f-plano').value.trim();
 
@@ -1080,7 +1069,6 @@ async function loadEntries() {
   if (start)   url += `start=${encodeURIComponent(start)}&`;
   if (end)     url += `end=${encodeURIComponent(end)}&`;
   if (bid)     url += `biomedica_id=${bid}&`;
-  if (st)      url += `status=${encodeURIComponent(st)}&`;
   if (patient) url += `patient=${encodeURIComponent(patient)}&`;
   if (plano)   url += `plano=${encodeURIComponent(plano)}&`;
 
@@ -1109,7 +1097,7 @@ function renderEntriesTable(entries) {
     const canEdit     = ['admin','agendador'].includes(currentUser.role) && isPendente;
     const canDelete   = ['admin','agendador'].includes(currentUser.role) && isPendente;
     const canComplete = currentUser.role !== 'agendador' && isPendente;
-    const canStatus   = ['admin','agendador'].includes(currentUser.role) && isPendente;
+    const canStatus   = ['admin','agendador'].includes(currentUser.role);
     const sessaoInfo  = e.plano || e.sessao
       ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${e.plano||''}${e.sessao ? ` · Sessão ${e.sessao}${e.total_sessoes ? '/' + e.total_sessoes : ''}` : ''}</div>`
       : '';
@@ -1118,13 +1106,13 @@ function renderEntriesTable(entries) {
       <td>${e.patient}${sessaoInfo}</td>
       ${showBio ? `<td>${e.biomedica_name}</td>` : ''}
       <td>${e.plano ? `<span style="font-size:12px">${e.plano}</span><br>` : ''}<span style="font-size:12px;color:var(--muted)">${e.sessao ? `Sessão ${e.sessao}${e.total_sessoes?'/'+e.total_sessoes:''} · ` : ''}${e.type||'Coleta'}</span></td>
-      <td>${statusBadge(e.status)}</td>
+      <td>${confirmationBadge(e.confirmation_status)}</td>
       <td>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
           ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick='openEntryModal(${JSON.stringify(e)})'>✏️</button>` : ''}
           ${canComplete ? `<button class="btn btn-success btn-sm" onclick='openPrestacao(${JSON.stringify(e)})'>✓ Concluir</button>` : ''}
-          ${canStatus ? `<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="marcarStatus(${e.id},'biomedica_faltou')" title="Biomédica faltou">🚫</button>` : ''}
-          ${canStatus ? `<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="marcarStatus(${e.id},'paciente_cancelou')" title="Paciente cancelou">❌</button>` : ''}
+          ${canStatus && e.confirmation_status !== 'confirmado' ? `<button class="btn btn-success btn-sm" onclick="setConfirmation(${e.id},'confirmado')" title="Confirmar">✓ Confirmar</button>` : ''}
+          ${canStatus && e.confirmation_status !== 'cancelado' ? `<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="setConfirmation(${e.id},'cancelado')" title="Cancelar">✕ Cancelar</button>` : ''}
           ${canDelete ? `<button class="btn btn-danger btn-sm" onclick="deleteEntry(${e.id})">🗑️</button>` : ''}
         </div>
       </td>
@@ -1148,8 +1136,22 @@ function statusBadge(s) {
   return `<span class="badge badge-${cls[s]||'pending'}">${map[s]||s}</span>`;
 }
 
+function confirmationBadge(s) {
+  const map = { pendente: '⏳ Pendente', confirmado: '✅ Confirmado', cancelado: '❌ Cancelado' };
+  const cls = { pendente: 'pending', confirmado: 'done', cancelado: 'cancelled' };
+  return `<span class="badge badge-${cls[s]||'pending'}">${map[s]||s}</span>`;
+}
+
+async function setConfirmation(id, confirmation_status) {
+  try {
+    await apiFetch(`/api/entries/${id}/confirmation-status`, { method: 'PATCH', body: JSON.stringify({ confirmation_status }) });
+    loadEntries();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
 function clearFilters() {
-  document.getElementById('f-status').value   = '';
   document.getElementById('f-biomedica').value = '';
   document.getElementById('f-patient').value  = '';
   document.getElementById('f-plano').value    = '';
