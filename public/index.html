@@ -370,6 +370,7 @@ tr:hover td { background:var(--bg); }
                 <th>Paciente</th>
                 <th id="th-biomedica" style="display:none">Biomédica</th>
                 <th>Plano / Sessão</th>
+                <th>Tratamento do dia</th>
                 <th>Tipo</th>
                 <th>Status</th>
                 <th>Ações</th>
@@ -507,7 +508,7 @@ tr:hover td { background:var(--bg); }
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Biomédica *</label>
-        <select class="form-select" id="entry-biomedica"></select>
+        <select class="form-select" id="entry-biomedica" onchange="updateSessionPreview()"></select>
       </div>
       <div class="form-group">
         <label class="form-label">Tipo de atendimento</label>
@@ -577,23 +578,20 @@ tr:hover td { background:var(--bg); }
         <input class="form-input" type="number" id="entry-duration" min="1" placeholder="100" oninput="entryDurationTouched=true"/>
       </div>
     </div>
+    <div class="form-group" id="entry-tratamento-wrap">
+      <label class="form-label">Tratamento do dia</label>
+      <input class="form-input" type="text" id="entry-tratamento" placeholder="Ex: Microagulhamento + Drug Delivery"/>
+    </div>
     <div class="form-group">
       <label class="form-label">Observação</label>
       <textarea class="form-textarea" id="entry-note" placeholder="Observações adicionais..."></textarea>
     </div>
 
-    <!-- Opção de criar em lote (só aparece em novos agendamentos com total > 1) -->
-    <div id="bulk-criar-opcao" style="display:none;margin-bottom:12px">
-      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;font-weight:500;padding:12px;background:var(--accent);border-radius:8px;border:1px solid var(--border)">
-        <input type="checkbox" id="entry-criar-todas" onchange="updateSessionPreview()" style="width:16px;height:16px"/>
-        Criar todas as sessões do plano de uma vez
-      </label>
-    </div>
-
-    <!-- Prévia das sessões em lote -->
+    <!-- Sessões geradas automaticamente quando o plano selecionado tem mais de 1 sessão -->
     <div id="bulk-sessions-section" style="display:none;background:var(--bg);border-radius:8px;padding:16px;margin-bottom:16px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">Este plano gera múltiplas sessões — preencha cada uma:</div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
-        <span style="font-size:13px;font-weight:500">Frequência:</span>
+        <span style="font-size:13px;font-weight:500">Frequência sugerida:</span>
         <select class="form-select" id="bulk-freq" style="width:auto" onchange="updateSessionPreview()">
           <option value="1">Diária</option>
           <option value="7" selected>Semanal</option>
@@ -601,8 +599,7 @@ tr:hover td { background:var(--bg); }
           <option value="30">Mensal</option>
         </select>
       </div>
-      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Prévia — ajuste datas/horários se necessário</div>
-      <div id="bulk-sessions-list" style="max-height:300px;overflow-y:auto"></div>
+      <div id="bulk-sessions-list" style="max-height:420px;overflow-y:auto"></div>
     </div>
 
     <div class="modal-footer">
@@ -755,6 +752,24 @@ tr:hover td { background:var(--bg); }
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-plan')">Cancelar</button>
       <button class="btn btn-primary" onclick="savePlan()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: TRATAMENTOS POR SESSÃO -->
+<div class="modal-overlay" id="modal-plan-treatments">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-plan-treatments-title">Tratamentos do plano</span>
+      <button class="modal-close" onclick="closeModal('modal-plan-treatments')">×</button>
+    </div>
+    <div id="modal-plan-treatments-alert"></div>
+    <input type="hidden" id="plan-treatments-plan-id"/>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Defina o tratamento padrão de cada sessão. Fica em branco até ser preenchido — cada agendamento pode ter o tratamento ajustado individualmente depois.</div>
+    <div id="plan-treatments-list" style="max-height:360px;overflow-y:auto"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-plan-treatments')">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePlanTreatments()">Salvar</button>
     </div>
   </div>
 </div>
@@ -1205,6 +1220,7 @@ function renderEntriesTable(entries) {
       <td>${e.patient}${sessaoInfo}</td>
       ${showBio ? `<td>${e.biomedica_name}</td>` : ''}
       <td>${planoNome ? `<span style="font-size:12px">${planoNome}</span><br>` : ''}<span style="font-size:12px;color:var(--muted)">${e.sessao ? `Sessão ${e.sessao}${e.total_sessoes?'/'+e.total_sessoes:''} · ` : ''}${e.type||'Coleta'}</span></td>
+      <td style="font-size:12px">${e.tratamento || '—'}</td>
       <td>${confirmationBadge(e.confirmation_status)}</td>
       <td>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
@@ -1325,24 +1341,17 @@ function openEntryModal(entry=null) {
   document.getElementById('entry-driver').value      = entry?.driver || '';
   document.getElementById('entry-duration').value    = entry?.duration_minutes || '';
   document.getElementById('entry-note').value        = entry?.note || '';
+  document.getElementById('entry-tratamento').value  = entry?.tratamento || '';
   document.getElementById('entry-sessao').value      = entry?.sessao || '';
   document.getElementById('entry-total-sessoes').value = entry?.total_sessoes || '';
   document.getElementById('patient-suggestions').style.display = 'none';
   entryDurationTouched = !!entry?.duration_minutes;
   document.getElementById('modal-entry-alert').className = 'alert';
+  currentPlanTreatments = [];
 
-  // bulk options only for new entries
-  const bulkOpcao = document.getElementById('bulk-criar-opcao');
-  const bulkSection = document.getElementById('bulk-sessions-section');
-  const criarTodas = document.getElementById('entry-criar-todas');
-  if (isNew) {
-    bulkOpcao.style.display = 'none'; // will show via onTotalSessoesChange
-    bulkSection.style.display = 'none';
-    criarTodas.checked = false;
-  } else {
-    bulkOpcao.style.display = 'none';
-    bulkSection.style.display = 'none';
-  }
+  // sessões em lote só se aplicam à criação de novos agendamentos
+  document.getElementById('bulk-sessions-section').style.display = 'none';
+  document.getElementById('entry-tratamento-wrap').style.display = 'block';
 
   // populate biomedica select
   const sel = document.getElementById('entry-biomedica');
@@ -1367,13 +1376,29 @@ function openEntryModal(entry=null) {
   openModal('modal-entry');
 }
 
-function onPlanChange() {
+let currentPlanTreatments = [];
+
+async function onPlanChange() {
   const planId = document.getElementById('entry-plan-id').value;
   const plan = plans.find(p => String(p.id) === String(planId));
   if (plan) {
     document.getElementById('entry-total-sessoes').value = plan.total_sessoes;
-    onTotalSessoesChange();
+    try {
+      currentPlanTreatments = await apiFetch(`/api/plans/${plan.id}/treatments`);
+    } catch (e) { currentPlanTreatments = []; }
+    if (plan.total_sessoes <= 1) {
+      const t = treatmentForSession(1);
+      if (t) document.getElementById('entry-tratamento').value = t;
+    }
+  } else {
+    currentPlanTreatments = [];
   }
+  onTotalSessoesChange();
+}
+
+function treatmentForSession(sessaoNum) {
+  const t = currentPlanTreatments.find(t => t.sessao_numero === sessaoNum);
+  return t ? t.tratamento : '';
 }
 
 // ── AUTOCOMPLETE DE PACIENTE ─────────────────────────────────────
@@ -1425,24 +1450,24 @@ document.addEventListener('click', (ev) => {
 function onTotalSessoesChange() {
   const total = parseInt(document.getElementById('entry-total-sessoes').value) || 0;
   const entryId = document.getElementById('entry-id').value;
-  const bulkOpcao = document.getElementById('bulk-criar-opcao');
-  // só mostra opção em lote para novos agendamentos com mais de 1 sessão
-  bulkOpcao.style.display = (total > 1 && !entryId) ? 'block' : 'none';
-  if (total <= 1 || entryId) {
-    document.getElementById('entry-criar-todas').checked = false;
-    document.getElementById('bulk-sessions-section').style.display = 'none';
-  } else {
+  // sessões automáticas só se aplicam à criação de novos agendamentos com mais de 1 sessão
+  if (total > 1 && !entryId) {
+    document.getElementById('entry-tratamento-wrap').style.display = 'none';
     updateSessionPreview();
+  } else {
+    document.getElementById('bulk-sessions-section').style.display = 'none';
+    document.getElementById('entry-tratamento-wrap').style.display = 'block';
+    document.getElementById('btn-save-entry').textContent = 'Salvar';
   }
 }
 
 function updateSessionPreview() {
-  const criarTodas = document.getElementById('entry-criar-todas').checked;
-  const total      = parseInt(document.getElementById('entry-total-sessoes').value) || 0;
-  const section    = document.getElementById('bulk-sessions-section');
-  const btn        = document.getElementById('btn-save-entry');
+  const total   = parseInt(document.getElementById('entry-total-sessoes').value) || 0;
+  const entryId = document.getElementById('entry-id').value;
+  const section = document.getElementById('bulk-sessions-section');
+  const btn     = document.getElementById('btn-save-entry');
 
-  if (!criarTodas || total < 2) {
+  if (total < 2 || entryId) {
     section.style.display = 'none';
     btn.textContent = 'Salvar';
     return;
@@ -1451,26 +1476,49 @@ function updateSessionPreview() {
   section.style.display = 'block';
   btn.textContent = `Criar ${total} sessões`;
 
-  const startDate  = document.getElementById('entry-date').value;
-  const startTime  = document.getElementById('entry-time').value || '09:00';
-  const freq       = parseInt(document.getElementById('bulk-freq').value) || 7;
-  const sessaoBase = parseInt(document.getElementById('entry-sessao').value) || 1;
+  const startDate     = document.getElementById('entry-date').value;
+  const startTime     = document.getElementById('entry-time').value || '09:00';
+  const freq          = parseInt(document.getElementById('bulk-freq').value) || 7;
+  const sessaoBase    = parseInt(document.getElementById('entry-sessao').value) || 1;
+  const baseAddress   = document.getElementById('entry-address').value.trim();
+  const baseBiomedica = document.getElementById('entry-biomedica').value;
+  const baseDriver    = document.getElementById('entry-driver').value.trim();
 
   if (!startDate) return;
 
+  const bioOptions = biomedicas.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
   const list = document.getElementById('bulk-sessions-list');
   let html = '';
   for (let i = 0; i < total; i++) {
+    const sessaoNum = sessaoBase + i;
     const d = new Date(startDate + 'T12:00:00');
     d.setDate(d.getDate() + freq * i);
     const dateStr = d.toISOString().slice(0, 10);
-    html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-      <span style="font-size:12px;color:var(--muted);min-width:64px;flex-shrink:0">Sessão ${sessaoBase + i}</span>
-      <input type="date" class="form-input" style="flex:1" value="${dateStr}" id="bulk-date-${i}"/>
-      <input type="time" class="form-input" style="width:105px;flex-shrink:0" value="${startTime}" id="bulk-time-${i}"/>
+    const tratamento = treatmentForSession(sessaoNum);
+    html += `<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:10px;background:#fff">
+      <div style="font-size:12px;font-weight:600;color:var(--primary);margin-bottom:8px">Sessão ${sessaoNum}${total ? '/' + total : ''}</div>
+      <div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+        <input type="date" class="form-input" style="flex:1;min-width:130px" value="${dateStr}" id="bulk-date-${i}"/>
+        <input type="time" class="form-input" style="width:105px;flex-shrink:0" value="${startTime}" id="bulk-time-${i}"/>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+        <input type="text" class="form-input" style="flex:1;min-width:150px" placeholder="Local de atendimento" value="${baseAddress}" id="bulk-address-${i}"/>
+        <input type="text" class="form-input" style="flex:1;min-width:120px" placeholder="Motorista" value="${baseDriver}" id="bulk-driver-${i}"/>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select class="form-select" style="flex:1;min-width:150px" id="bulk-bio-${i}">
+          <option value="">Biomédica...</option>
+          ${bioOptions}
+        </select>
+        <input type="text" class="form-input" style="flex:1;min-width:180px" placeholder="Tratamento do dia" value="${tratamento}" id="bulk-tratamento-${i}"/>
+      </div>
     </div>`;
   }
   list.innerHTML = html;
+  // pré-seleciona a biomédica base em cada linha (não dá pra fazer via atributo "selected" acima porque o HTML já foi montado)
+  for (let i = 0; i < total; i++) {
+    if (baseBiomedica) document.getElementById(`bulk-bio-${i}`).value = baseBiomedica;
+  }
 }
 
 async function ensurePatientId() {
@@ -1486,11 +1534,12 @@ async function ensurePatientId() {
 }
 
 async function saveEntry() {
-  if (document.getElementById('entry-criar-todas').checked) {
+  const total = parseInt(document.getElementById('entry-total-sessoes').value) || 0;
+  const id    = document.getElementById('entry-id').value;
+  if (total > 1 && !id) {
     await saveBulkEntries(); return;
   }
 
-  const id = document.getElementById('entry-id').value;
   let patientId;
   try {
     patientId = await ensurePatientId();
@@ -1510,6 +1559,7 @@ async function saveEntry() {
     driver:        document.getElementById('entry-driver').value.trim(),
     duration_minutes: document.getElementById('entry-duration').value || null,
     note:          document.getElementById('entry-note').value.trim(),
+    tratamento:    document.getElementById('entry-tratamento').value.trim(),
     plan_id:       document.getElementById('entry-plan-id').value || null,
     sessao:        document.getElementById('entry-sessao').value || null,
     total_sessoes: document.getElementById('entry-total-sessoes').value || null,
@@ -1543,31 +1593,32 @@ async function saveBulkEntries() {
     return;
   }
   const base = {
-    biomedica_id:  document.getElementById('entry-biomedica').value,
     type:          document.getElementById('entry-type').value,
     patient:       document.getElementById('entry-patient').value.trim(),
     patient_id:    patientId,
-    address:       document.getElementById('entry-address').value.trim(),
     value:         document.getElementById('entry-value').value || 0,
-    driver:        document.getElementById('entry-driver').value.trim(),
     duration_minutes: document.getElementById('entry-duration').value || null,
     note:          document.getElementById('entry-note').value.trim(),
     plan_id:       document.getElementById('entry-plan-id').value || null,
     total_sessoes: total,
   };
-  if (!base.biomedica_id || !base.patient) {
+  if (!document.getElementById('entry-biomedica').value || !base.patient) {
     showAlert('modal-entry-alert', 'Preencha biomédica e paciente');
     return;
   }
   const entries = [];
   for (let i = 0; i < total; i++) {
-    const date = document.getElementById(`bulk-date-${i}`)?.value;
-    const time = document.getElementById(`bulk-time-${i}`)?.value;
-    if (!date || !time) {
-      showAlert('modal-entry-alert', `Preencha data e hora da sessão ${sessaoBase + i}`);
+    const date       = document.getElementById(`bulk-date-${i}`)?.value;
+    const time       = document.getElementById(`bulk-time-${i}`)?.value;
+    const address    = document.getElementById(`bulk-address-${i}`)?.value.trim();
+    const driver     = document.getElementById(`bulk-driver-${i}`)?.value.trim();
+    const biomedica_id = document.getElementById(`bulk-bio-${i}`)?.value;
+    const tratamento = document.getElementById(`bulk-tratamento-${i}`)?.value.trim();
+    if (!date || !time || !biomedica_id) {
+      showAlert('modal-entry-alert', `Preencha data, hora e biomédica da sessão ${sessaoBase + i}`);
       return;
     }
-    entries.push({ ...base, date, time, sessao: sessaoBase + i });
+    entries.push({ ...base, date, time, address, driver, biomedica_id, tratamento, sessao: sessaoBase + i });
   }
   try {
     const btn = document.getElementById('btn-save-entry');
@@ -1958,6 +2009,7 @@ async function loadPlanos() {
       <td>${p.ativo ? '<span class="badge badge-done">Ativo</span>' : '<span class="badge badge-cancelled">Inativo</span>'}</td>
       <td>
         <button class="btn btn-ghost btn-sm" onclick='openPlanModal(${JSON.stringify(p)})'>✏️ Editar</button>
+        <button class="btn btn-ghost btn-sm" onclick='openTreatmentsModal(${JSON.stringify(p)})'>💊 Tratamentos</button>
         <button class="btn btn-danger btn-sm" onclick="deletePlan(${p.id})">🗑️</button>
       </td>
     </tr>`).join('');
@@ -2003,6 +2055,42 @@ async function deletePlan(id) {
     loadPlanos();
     plans = await apiFetch('/api/plans?active=true');
   } catch(e) { alert(e.message); }
+}
+
+async function openTreatmentsModal(plan) {
+  document.getElementById('modal-plan-treatments-title').textContent = `Tratamentos — ${plan.nome}`;
+  document.getElementById('plan-treatments-plan-id').value = plan.id;
+  document.getElementById('modal-plan-treatments-alert').className = 'alert';
+  let existing = [];
+  try { existing = await apiFetch(`/api/plans/${plan.id}/treatments`); } catch(e) { console.error(e); }
+  const list = document.getElementById('plan-treatments-list');
+  let html = '';
+  for (let s = 1; s <= plan.total_sessoes; s++) {
+    const t = existing.find(x => x.sessao_numero === s);
+    html += `<div class="form-group">
+      <label class="form-label">Sessão ${s}</label>
+      <input class="form-input" type="text" id="plan-treatment-${s}" value="${t ? t.tratamento : ''}" placeholder="Tratamento da sessão ${s}"/>
+    </div>`;
+  }
+  list.innerHTML = html;
+  openModal('modal-plan-treatments');
+}
+
+async function savePlanTreatments() {
+  const planId = document.getElementById('plan-treatments-plan-id').value;
+  const plan = plans.find(p => String(p.id) === String(planId)) ||
+               (await apiFetch('/api/plans')).find(p => String(p.id) === String(planId));
+  const treatments = [];
+  for (let s = 1; s <= plan.total_sessoes; s++) {
+    const val = document.getElementById(`plan-treatment-${s}`).value.trim();
+    if (val) treatments.push({ sessao_numero: s, tratamento: val });
+  }
+  try {
+    await apiFetch(`/api/plans/${planId}/treatments`, { method:'PUT', body: JSON.stringify({ treatments }) });
+    closeModal('modal-plan-treatments');
+  } catch(e) {
+    showAlert('modal-plan-treatments-alert', e.message);
+  }
 }
 
 // ── IMPORTAR CSV ───────────────────────────────────────────────

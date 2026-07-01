@@ -203,17 +203,17 @@ async function resolvePatient(queryable, patient_id, patientFallback) {
 }
 
 app.post('/api/entries', auth, requireRole('admin', 'agendador'), async (req, res) => {
-  const { biomedica_id, date, time, type, patient, patient_id, address, value, driver, note, plano, plan_id, sessao, total_sessoes, duration_minutes } = req.body;
+  const { biomedica_id, date, time, type, patient, patient_id, address, value, driver, note, plano, plan_id, sessao, total_sessoes, duration_minutes, tratamento } = req.body;
   if (!biomedica_id || !date || !time || !patient) return res.status(400).json({ error: 'Biomedica, data, hora e paciente são obrigatórios' });
   try {
     const planoText = await resolvePlanoText(pool, plan_id, plano);
     const { patientText, sexo } = await resolvePatient(pool, patient_id, patient);
     const finalDuration = duration_minutes || defaultDuration(sexo);
     const { rows } = await pool.query(
-      `INSERT INTO entries (biomedica_id, date, time, type, patient, patient_id, address, value, driver, note, created_by, status, plano, plan_id, sessao, total_sessoes, duration_minutes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pendente',$12,$13,$14,$15,$16) RETURNING *`,
+      `INSERT INTO entries (biomedica_id, date, time, type, patient, patient_id, address, value, driver, note, created_by, status, plano, plan_id, sessao, total_sessoes, duration_minutes, tratamento)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pendente',$12,$13,$14,$15,$16,$17) RETURNING *`,
       [biomedica_id, date, time, type || 'Coleta', patientText, patient_id || null, address, value || 0, driver, note, req.user.id,
-       planoText, plan_id || null, sessao || null, total_sessoes || null, finalDuration]
+       planoText, plan_id || null, sessao || null, total_sessoes || null, finalDuration, tratamento || null]
     );
     return res.status(201).json(rows[0]);
   } catch (err) {
@@ -230,15 +230,15 @@ app.post('/api/entries/bulk', auth, requireRole('admin', 'agendador'), async (re
     await client.query('BEGIN');
     const created = [];
     for (const e of entries) {
-      const { biomedica_id, date, time, type, patient, patient_id, address, value, driver, note, plano, plan_id, sessao, total_sessoes, duration_minutes } = e;
+      const { biomedica_id, date, time, type, patient, patient_id, address, value, driver, note, plano, plan_id, sessao, total_sessoes, duration_minutes, tratamento } = e;
       const planoText = await resolvePlanoText(client, plan_id, plano);
       const { patientText, sexo } = await resolvePatient(client, patient_id, patient);
       const finalDuration = duration_minutes || defaultDuration(sexo);
       const { rows } = await client.query(
-        `INSERT INTO entries (biomedica_id, date, time, type, patient, patient_id, address, value, driver, note, created_by, status, plano, plan_id, sessao, total_sessoes, duration_minutes)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pendente',$12,$13,$14,$15,$16) RETURNING *`,
+        `INSERT INTO entries (biomedica_id, date, time, type, patient, patient_id, address, value, driver, note, created_by, status, plano, plan_id, sessao, total_sessoes, duration_minutes, tratamento)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pendente',$12,$13,$14,$15,$16,$17) RETURNING *`,
         [biomedica_id, date, time, type || 'Coleta', patientText, patient_id || null, address, value || 0, driver, note, req.user.id,
-         planoText, plan_id || null, sessao || null, total_sessoes || null, finalDuration]
+         planoText, plan_id || null, sessao || null, total_sessoes || null, finalDuration, tratamento || null]
       );
       created.push(rows[0]);
     }
@@ -254,17 +254,17 @@ app.post('/api/entries/bulk', auth, requireRole('admin', 'agendador'), async (re
 });
 
 app.put('/api/entries/:id', auth, requireRole('admin', 'agendador'), async (req, res) => {
-  const { biomedica_id, date, time, type, patient, patient_id, address, value, driver, note, plano, plan_id, sessao, total_sessoes, duration_minutes } = req.body;
+  const { biomedica_id, date, time, type, patient, patient_id, address, value, driver, note, plano, plan_id, sessao, total_sessoes, duration_minutes, tratamento } = req.body;
   try {
     const planoText = await resolvePlanoText(pool, plan_id, plano);
     const { patientText, sexo } = await resolvePatient(pool, patient_id, patient);
     const finalDuration = duration_minutes || defaultDuration(sexo);
     const { rows } = await pool.query(
       `UPDATE entries SET biomedica_id=$1, date=$2, time=$3, type=$4, patient=$5, patient_id=$6, address=$7, value=$8, driver=$9, note=$10,
-       plano=$11, plan_id=$12, sessao=$13, total_sessoes=$14, duration_minutes=$15, updated_at=now()
-       WHERE id=$16 AND status='pendente' RETURNING *`,
+       plano=$11, plan_id=$12, sessao=$13, total_sessoes=$14, duration_minutes=$15, tratamento=$16, updated_at=now()
+       WHERE id=$17 AND status='pendente' RETURNING *`,
       [biomedica_id, date, time, type, patientText, patient_id || null, address, value, driver, note,
-       planoText, plan_id || null, sessao || null, total_sessoes || null, finalDuration, req.params.id]
+       planoText, plan_id || null, sessao || null, total_sessoes || null, finalDuration, tratamento || null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Agendamento não encontrado ou já concluído' });
     return res.json(rows[0]);
@@ -599,6 +599,38 @@ app.delete('/api/plans/:id', auth, requireRole('admin'), async (req, res) => {
     if (err.code === '23503') return res.status(400).json({ error: 'Plano em uso em agendamentos — desative-o em vez de excluir' });
     console.error(err);
     return res.status(500).json({ error: 'Erro ao excluir plano' });
+  }
+});
+
+app.get('/api/plans/:id/treatments', auth, async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT * FROM plan_session_treatments WHERE plan_id=$1 ORDER BY sessao_numero', [req.params.id]
+  );
+  return res.json(rows);
+});
+
+app.put('/api/plans/:id/treatments', auth, requireRole('admin'), async (req, res) => {
+  const { treatments } = req.body; // [{sessao_numero, tratamento}, ...]
+  if (!Array.isArray(treatments)) return res.status(400).json({ error: 'Lista inválida' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM plan_session_treatments WHERE plan_id=$1', [req.params.id]);
+    for (const t of treatments) {
+      if (!t.tratamento?.trim()) continue;
+      await client.query(
+        'INSERT INTO plan_session_treatments (plan_id, sessao_numero, tratamento) VALUES ($1,$2,$3)',
+        [req.params.id, t.sessao_numero, t.tratamento.trim()]
+      );
+    }
+    await client.query('COMMIT');
+    return res.json({ success: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(err);
+    return res.status(500).json({ error: 'Erro ao salvar tratamentos' });
+  } finally {
+    client.release();
   }
 });
 
