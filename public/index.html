@@ -524,9 +524,21 @@ tr:hover td { background:var(--bg); }
         <input class="form-input" type="time" id="entry-time" oninput="updateSessionPreview()"/>
       </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">Paciente *</label>
-      <input class="form-input" type="text" id="entry-patient" placeholder="Nome do paciente"/>
+    <div class="form-row">
+      <div class="form-group" style="position:relative">
+        <label class="form-label">Paciente *</label>
+        <input class="form-input" type="text" id="entry-patient" placeholder="Nome do paciente" autocomplete="off" oninput="onPatientInput()"/>
+        <input type="hidden" id="entry-patient-id"/>
+        <div id="patient-suggestions" style="display:none;position:absolute;z-index:20;background:#fff;border:1px solid var(--border);border-radius:8px;margin-top:2px;max-height:180px;overflow-y:auto;width:100%;box-shadow:0 4px 12px rgba(0,0,0,.12)"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Sexo do paciente</label>
+        <select class="form-select" id="entry-patient-sexo" onchange="onPatientSexoChange()">
+          <option value="">Selecione...</option>
+          <option value="M">Masculino</option>
+          <option value="F">Feminino</option>
+        </select>
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Endereço</label>
@@ -551,7 +563,7 @@ tr:hover td { background:var(--bg); }
       </div>
     </div>
 
-    <div class="form-row">
+    <div class="form-row-3">
       <div class="form-group">
         <label class="form-label">Valor (R$)</label>
         <input class="form-input" type="number" id="entry-value" min="0" step="0.01" placeholder="0,00"/>
@@ -559,6 +571,10 @@ tr:hover td { background:var(--bg); }
       <div class="form-group">
         <label class="form-label">Motorista</label>
         <input class="form-input" type="text" id="entry-driver" placeholder="Nome do motorista"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Duração (min)</label>
+        <input class="form-input" type="number" id="entry-duration" min="1" placeholder="100" oninput="entryDurationTouched=true"/>
       </div>
     </div>
     <div class="form-group">
@@ -841,6 +857,17 @@ function fmtDate(d) {
 function fmtTime(t) {
   if (!t) return '';
   return t.substring(0,5);
+}
+function fmtHHhMM(t) {
+  if (!t) return '';
+  const [h, m] = fmtTime(t).split(':');
+  return `${h}h${m}`;
+}
+function addMinutesToTime(t, mins) {
+  if (!t) return '';
+  const [h, m] = fmtTime(t).split(':').map(Number);
+  const d = new Date(2000, 0, 1, h, m + (mins || 100));
+  return `${String(d.getHours()).padStart(2,'0')}h${String(d.getMinutes()).padStart(2,'0')}`;
 }
 function fmtMoney(v) {
   return 'R$ ' + parseFloat(v || 0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
@@ -1174,7 +1201,7 @@ function renderEntriesTable(entries) {
       ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${planoNome||''}${e.sessao ? ` · Sessão ${e.sessao}${e.total_sessoes ? '/' + e.total_sessoes : ''}` : ''}</div>`
       : '';
     return `<tr>
-      <td><strong>${fmtDate(e.date?.slice?.(0,10))}</strong><br><span style="color:var(--muted);font-size:12px">${fmtTime(e.time)}</span></td>
+      <td><strong>${fmtDate(e.date?.slice?.(0,10))}</strong><br><span style="color:var(--muted);font-size:12px">${fmtHHhMM(e.time)} às ${addMinutesToTime(e.time, e.duration_minutes)}</span></td>
       <td>${e.patient}${sessaoInfo}</td>
       ${showBio ? `<td>${e.biomedica_name}</td>` : ''}
       <td>${planoNome ? `<span style="font-size:12px">${planoNome}</span><br>` : ''}<span style="font-size:12px;color:var(--muted)">${e.sessao ? `Sessão ${e.sessao}${e.total_sessoes?'/'+e.total_sessoes:''} · ` : ''}${e.type||'Coleta'}</span></td>
@@ -1291,12 +1318,17 @@ function openEntryModal(entry=null) {
   document.getElementById('entry-date').value        = entry?.date?.slice?.(0,10) || today();
   document.getElementById('entry-time').value        = entry ? fmtTime(entry.time) : '';
   document.getElementById('entry-patient').value     = entry?.patient || '';
+  document.getElementById('entry-patient-id').value  = entry?.patient_id || '';
+  document.getElementById('entry-patient-sexo').value = entry?.patient_sexo || '';
   document.getElementById('entry-address').value     = entry?.address || '';
   document.getElementById('entry-value').value       = entry?.value || '';
   document.getElementById('entry-driver').value      = entry?.driver || '';
+  document.getElementById('entry-duration').value    = entry?.duration_minutes || '';
   document.getElementById('entry-note').value        = entry?.note || '';
   document.getElementById('entry-sessao').value      = entry?.sessao || '';
   document.getElementById('entry-total-sessoes').value = entry?.total_sessoes || '';
+  document.getElementById('patient-suggestions').style.display = 'none';
+  entryDurationTouched = !!entry?.duration_minutes;
   document.getElementById('modal-entry-alert').className = 'alert';
 
   // bulk options only for new entries
@@ -1343,6 +1375,52 @@ function onPlanChange() {
     onTotalSessoesChange();
   }
 }
+
+// ── AUTOCOMPLETE DE PACIENTE ─────────────────────────────────────
+let entryDurationTouched = false;
+function computeDefaultDuration(sexo) { return sexo === 'M' ? 80 : 100; }
+
+function onPatientSexoChange() {
+  if (!entryDurationTouched) {
+    document.getElementById('entry-duration').value = computeDefaultDuration(document.getElementById('entry-patient-sexo').value);
+  }
+}
+
+let patientSearchTimeout = null;
+function onPatientInput() {
+  document.getElementById('entry-patient-id').value = '';
+  const q = document.getElementById('entry-patient').value.trim();
+  clearTimeout(patientSearchTimeout);
+  const box = document.getElementById('patient-suggestions');
+  if (q.length < 2) { box.style.display = 'none'; return; }
+  patientSearchTimeout = setTimeout(async () => {
+    try {
+      const results = await apiFetch('/api/patients?search=' + encodeURIComponent(q));
+      if (!results.length) { box.style.display = 'none'; return; }
+      box.innerHTML = results.map(p => `
+        <div style="padding:8px;cursor:pointer;font-size:13px" onclick='selectPatientSuggestion(${JSON.stringify(p)})' onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
+          ${p.nome}${p.sexo ? ` <span style="color:var(--muted);font-size:11px">(${p.sexo === 'M' ? 'Masculino' : 'Feminino'})</span>` : ''}
+        </div>`).join('');
+      box.style.display = 'block';
+    } catch (e) { console.error(e); }
+  }, 300);
+}
+
+function selectPatientSuggestion(p) {
+  document.getElementById('entry-patient').value = p.nome;
+  document.getElementById('entry-patient-id').value = p.id;
+  document.getElementById('entry-patient-sexo').value = p.sexo || '';
+  document.getElementById('patient-suggestions').style.display = 'none';
+  onPatientSexoChange();
+}
+
+document.addEventListener('click', (ev) => {
+  const box = document.getElementById('patient-suggestions');
+  const input = document.getElementById('entry-patient');
+  if (box && box.style.display === 'block' && !box.contains(ev.target) && ev.target !== input) {
+    box.style.display = 'none';
+  }
+});
 
 function onTotalSessoesChange() {
   const total = parseInt(document.getElementById('entry-total-sessoes').value) || 0;
@@ -1395,21 +1473,42 @@ function updateSessionPreview() {
   list.innerHTML = html;
 }
 
+async function ensurePatientId() {
+  let patientId = document.getElementById('entry-patient-id').value;
+  const nome = document.getElementById('entry-patient').value.trim();
+  const sexo = document.getElementById('entry-patient-sexo').value || null;
+  if (!patientId && nome) {
+    const created = await apiFetch('/api/patients', { method: 'POST', body: JSON.stringify({ nome, sexo }) });
+    patientId = created.id;
+    document.getElementById('entry-patient-id').value = patientId;
+  }
+  return patientId || null;
+}
+
 async function saveEntry() {
   if (document.getElementById('entry-criar-todas').checked) {
     await saveBulkEntries(); return;
   }
 
   const id = document.getElementById('entry-id').value;
+  let patientId;
+  try {
+    patientId = await ensurePatientId();
+  } catch (e) {
+    showAlert('modal-entry-alert', e.message);
+    return;
+  }
   const body = {
     biomedica_id:  document.getElementById('entry-biomedica').value,
     date:          document.getElementById('entry-date').value,
     time:          document.getElementById('entry-time').value,
     type:          document.getElementById('entry-type').value,
     patient:       document.getElementById('entry-patient').value.trim(),
+    patient_id:    patientId,
     address:       document.getElementById('entry-address').value.trim(),
     value:         document.getElementById('entry-value').value || 0,
     driver:        document.getElementById('entry-driver').value.trim(),
+    duration_minutes: document.getElementById('entry-duration').value || null,
     note:          document.getElementById('entry-note').value.trim(),
     plan_id:       document.getElementById('entry-plan-id').value || null,
     sessao:        document.getElementById('entry-sessao').value || null,
@@ -1436,13 +1535,22 @@ async function saveEntry() {
 async function saveBulkEntries() {
   const total      = parseInt(document.getElementById('entry-total-sessoes').value) || 0;
   const sessaoBase = parseInt(document.getElementById('entry-sessao').value) || 1;
+  let patientId;
+  try {
+    patientId = await ensurePatientId();
+  } catch (e) {
+    showAlert('modal-entry-alert', e.message);
+    return;
+  }
   const base = {
     biomedica_id:  document.getElementById('entry-biomedica').value,
     type:          document.getElementById('entry-type').value,
     patient:       document.getElementById('entry-patient').value.trim(),
+    patient_id:    patientId,
     address:       document.getElementById('entry-address').value.trim(),
     value:         document.getElementById('entry-value').value || 0,
     driver:        document.getElementById('entry-driver').value.trim(),
+    duration_minutes: document.getElementById('entry-duration').value || null,
     note:          document.getElementById('entry-note').value.trim(),
     plan_id:       document.getElementById('entry-plan-id').value || null,
     total_sessoes: total,

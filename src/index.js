@@ -172,11 +172,12 @@ app.get('/api/entries', auth, async (req, res) => {
   }
 
   const { rows } = await pool.query(
-    `SELECT e.*, b.name AS biomedica_name, c.name AS created_by_name, p.nome AS plan_nome
+    `SELECT e.*, b.name AS biomedica_name, c.name AS created_by_name, p.nome AS plan_nome, pt.sexo AS patient_sexo
      FROM entries e
      JOIN users b ON b.id = e.biomedica_id
      JOIN users c ON c.id = e.created_by
      LEFT JOIN plans p ON p.id = e.plan_id
+     LEFT JOIN patients pt ON pt.id = e.patient_id
      WHERE ${where}
      ORDER BY e.date, e.time`,
     vals
@@ -190,16 +191,29 @@ async function resolvePlanoText(queryable, plan_id, planoFallback) {
   return rows.length ? rows[0].nome : (planoFallback || null);
 }
 
+function defaultDuration(sexo) {
+  return sexo === 'M' ? 80 : 100; // feminino/desconhecido usa o padrão maior (até 1h40)
+}
+
+async function resolvePatient(queryable, patient_id, patientFallback) {
+  if (!patient_id) return { patientText: patientFallback || null, sexo: null };
+  const { rows } = await queryable.query('SELECT nome, sexo FROM patients WHERE id=$1', [patient_id]);
+  if (!rows.length) return { patientText: patientFallback || null, sexo: null };
+  return { patientText: rows[0].nome, sexo: rows[0].sexo };
+}
+
 app.post('/api/entries', auth, requireRole('admin', 'agendador'), async (req, res) => {
-  const { biomedica_id, date, time, type, patient, address, value, driver, note, plano, plan_id, sessao, total_sessoes } = req.body;
+  const { biomedica_id, date, time, type, patient, patient_id, address, value, driver, note, plano, plan_id, sessao, total_sessoes, duration_minutes } = req.body;
   if (!biomedica_id || !date || !time || !patient) return res.status(400).json({ error: 'Biomedica, data, hora e paciente são obrigatórios' });
   try {
     const planoText = await resolvePlanoText(pool, plan_id, plano);
+    const { patientText, sexo } = await resolvePatient(pool, patient_id, patient);
+    const finalDuration = duration_minutes || defaultDuration(sexo);
     const { rows } = await pool.query(
-      `INSERT INTO entries (biomedica_id, date, time, type, patient, address, value, driver, note, created_by, status, plano, plan_id, sessao, total_sessoes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pendente',$11,$12,$13,$14) RETURNING *`,
-      [biomedica_id, date, time, type || 'Coleta', patient, address, value || 0, driver, note, req.user.id,
-       planoText, plan_id || null, sessao || null, total_sessoes || null]
+      `INSERT INTO entries (biomedica_id, date, time, type, patient, patient_id, address, value, driver, note, created_by, status, plano, plan_id, sessao, total_sessoes, duration_minutes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pendente',$12,$13,$14,$15,$16) RETURNING *`,
+      [biomedica_id, date, time, type || 'Coleta', patientText, patient_id || null, address, value || 0, driver, note, req.user.id,
+       planoText, plan_id || null, sessao || null, total_sessoes || null, finalDuration]
     );
     return res.status(201).json(rows[0]);
   } catch (err) {
@@ -216,13 +230,15 @@ app.post('/api/entries/bulk', auth, requireRole('admin', 'agendador'), async (re
     await client.query('BEGIN');
     const created = [];
     for (const e of entries) {
-      const { biomedica_id, date, time, type, patient, address, value, driver, note, plano, plan_id, sessao, total_sessoes } = e;
+      const { biomedica_id, date, time, type, patient, patient_id, address, value, driver, note, plano, plan_id, sessao, total_sessoes, duration_minutes } = e;
       const planoText = await resolvePlanoText(client, plan_id, plano);
+      const { patientText, sexo } = await resolvePatient(client, patient_id, patient);
+      const finalDuration = duration_minutes || defaultDuration(sexo);
       const { rows } = await client.query(
-        `INSERT INTO entries (biomedica_id, date, time, type, patient, address, value, driver, note, created_by, status, plano, plan_id, sessao, total_sessoes)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pendente',$11,$12,$13,$14) RETURNING *`,
-        [biomedica_id, date, time, type || 'Coleta', patient, address, value || 0, driver, note, req.user.id,
-         planoText, plan_id || null, sessao || null, total_sessoes || null]
+        `INSERT INTO entries (biomedica_id, date, time, type, patient, patient_id, address, value, driver, note, created_by, status, plano, plan_id, sessao, total_sessoes, duration_minutes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pendente',$12,$13,$14,$15,$16) RETURNING *`,
+        [biomedica_id, date, time, type || 'Coleta', patientText, patient_id || null, address, value || 0, driver, note, req.user.id,
+         planoText, plan_id || null, sessao || null, total_sessoes || null, finalDuration]
       );
       created.push(rows[0]);
     }
@@ -238,15 +254,17 @@ app.post('/api/entries/bulk', auth, requireRole('admin', 'agendador'), async (re
 });
 
 app.put('/api/entries/:id', auth, requireRole('admin', 'agendador'), async (req, res) => {
-  const { biomedica_id, date, time, type, patient, address, value, driver, note, plano, plan_id, sessao, total_sessoes } = req.body;
+  const { biomedica_id, date, time, type, patient, patient_id, address, value, driver, note, plano, plan_id, sessao, total_sessoes, duration_minutes } = req.body;
   try {
     const planoText = await resolvePlanoText(pool, plan_id, plano);
+    const { patientText, sexo } = await resolvePatient(pool, patient_id, patient);
+    const finalDuration = duration_minutes || defaultDuration(sexo);
     const { rows } = await pool.query(
-      `UPDATE entries SET biomedica_id=$1, date=$2, time=$3, type=$4, patient=$5, address=$6, value=$7, driver=$8, note=$9,
-       plano=$10, plan_id=$11, sessao=$12, total_sessoes=$13, updated_at=now()
-       WHERE id=$14 AND status='pendente' RETURNING *`,
-      [biomedica_id, date, time, type, patient, address, value, driver, note,
-       planoText, plan_id || null, sessao || null, total_sessoes || null, req.params.id]
+      `UPDATE entries SET biomedica_id=$1, date=$2, time=$3, type=$4, patient=$5, patient_id=$6, address=$7, value=$8, driver=$9, note=$10,
+       plano=$11, plan_id=$12, sessao=$13, total_sessoes=$14, duration_minutes=$15, updated_at=now()
+       WHERE id=$16 AND status='pendente' RETURNING *`,
+      [biomedica_id, date, time, type, patientText, patient_id || null, address, value, driver, note,
+       planoText, plan_id || null, sessao || null, total_sessoes || null, finalDuration, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Agendamento não encontrado ou já concluído' });
     return res.json(rows[0]);
@@ -581,6 +599,33 @@ app.delete('/api/plans/:id', auth, requireRole('admin'), async (req, res) => {
     if (err.code === '23503') return res.status(400).json({ error: 'Plano em uso em agendamentos — desative-o em vez de excluir' });
     console.error(err);
     return res.status(500).json({ error: 'Erro ao excluir plano' });
+  }
+});
+
+// ── PACIENTES ──────────────────────────────────────────────────
+app.get('/api/patients', auth, async (req, res) => {
+  const search = (req.query.search || '').trim();
+  if (!search) return res.json([]);
+  const { rows } = await pool.query(
+    'SELECT id, nome, sexo FROM patients WHERE nome ILIKE $1 ORDER BY nome LIMIT 20',
+    ['%' + search + '%']
+  );
+  return res.json(rows);
+});
+
+app.post('/api/patients', auth, requireRole('admin', 'agendador'), async (req, res) => {
+  const { nome, sexo } = req.body;
+  if (!nome?.trim()) return res.status(400).json({ error: 'Nome é obrigatório' });
+  if (sexo && !['M', 'F'].includes(sexo)) return res.status(400).json({ error: 'Sexo inválido' });
+  try {
+    const { rows } = await pool.query(
+      'INSERT INTO patients (nome, sexo) VALUES ($1,$2) RETURNING *',
+      [nome.trim(), sexo || null]
+    );
+    return res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Erro ao criar paciente' });
   }
 });
 
