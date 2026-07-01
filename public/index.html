@@ -1,0 +1,1802 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Dr. Renan Brigante · Agenda</title>
+<style>
+:root {
+  --bg:        #F5F0EB;
+  --white:     #FFFFFF;
+  --primary:   #C2935A;
+  --primary2:  #A67A42;
+  --accent:    #FFEFE0;
+  --text:      #1C1915;
+  --muted:     #8A7D70;
+  --border:    #E5DDD5;
+  --green:     #4E8C6A;
+  --red:       #B85050;
+  --yellow:    #C99040;
+  --green-bg:  rgba(78,140,106,.1);
+  --red-bg:    rgba(184,80,80,.1);
+  --yellow-bg: rgba(201,144,64,.1);
+  --shadow:    0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --radius:    10px;
+  --sidebar:   #1C1915;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,sans-serif; min-height:100vh; }
+
+/* ── LAYOUT ── */
+#app { display:flex; min-height:100vh; }
+#sidebar {
+  width:240px; min-height:100vh;
+  background:var(--sidebar); border-right:none;
+  box-shadow:2px 0 16px rgba(0,0,0,.25);
+  display:flex; flex-direction:column;
+  position:fixed; top:0; left:0; z-index:50;
+  transition:transform .25s;
+}
+#main { margin-left:240px; flex:1; padding:24px; min-height:100vh; }
+.sidebar-logo {
+  padding:24px 20px 20px;
+  border-bottom:1px solid rgba(255,239,224,.08);
+}
+.sidebar-logo img { display:block; height:36px; }
+.sidebar-logo p  { font-size:11px; color:rgba(255,239,224,.38); margin-top:8px; }
+.sidebar-user {
+  padding:10px 14px;
+  background:rgba(255,255,255,.05);
+  margin:12px;
+  border-radius:8px;
+  border:1px solid rgba(255,239,224,.08);
+}
+.sidebar-user .user-name { font-size:13px; font-weight:600; color:#FFEFE0; }
+.sidebar-user .user-role { font-size:11px; color:rgba(255,239,224,.45); }
+.sidebar-nav { flex:1; padding:8px 0; }
+.nav-item {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 20px; font-size:14px; color:rgba(255,239,224,.5);
+  cursor:pointer; border:none; background:none; width:100%; text-align:left;
+  border-left:3px solid transparent; transition:all .15s;
+}
+.nav-item:hover { color:#FFEFE0; background:rgba(255,239,224,.06); }
+.nav-item.active { color:#FFEFE0; font-weight:600; border-left-color:var(--primary); background:rgba(194,147,90,.12); }
+.nav-item svg { flex-shrink:0; }
+.nav-section { padding:12px 20px 4px; font-size:10px; font-weight:700; color:rgba(255,239,224,.25); letter-spacing:1px; text-transform:uppercase; }
+.sidebar-footer { padding:16px 20px; border-top:1px solid rgba(255,239,224,.08); }
+.btn-logout { width:100%; background:none; border:1px solid rgba(255,239,224,.15); color:rgba(255,239,224,.45); font-size:13px; padding:8px; border-radius:8px; cursor:pointer; transition:all .15s; }
+.btn-logout:hover { background:rgba(184,80,80,.15); color:#d47070; border-color:rgba(184,80,80,.35); }
+
+/* ── PÁGINAS ── */
+.page { display:none; }
+.page.active { display:block; }
+.page-header { margin-bottom:24px; }
+.page-title { font-size:22px; font-weight:700; color:var(--text); }
+.page-subtitle { font-size:14px; color:var(--muted); margin-top:4px; }
+
+/* ── CARDS ── */
+.card {
+  background:var(--white); border-radius:var(--radius);
+  border:1px solid var(--border); box-shadow:var(--shadow);
+  padding:20px;
+}
+.card-title { font-size:14px; font-weight:600; color:var(--text); margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+
+/* ── BOTÕES ── */
+.btn {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:9px 16px; font-size:14px; font-weight:500;
+  border-radius:8px; border:none; cursor:pointer; transition:all .15s;
+}
+.btn-primary { background:var(--primary); color:#fff; }
+.btn-primary:hover { background:var(--primary2); }
+.btn-sm { padding:6px 12px; font-size:12px; }
+.btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
+.btn-ghost:hover { background:var(--bg); color:var(--text); }
+.btn-danger { background:var(--red-bg); color:var(--red); border:1px solid var(--red); }
+.btn-danger:hover { background:var(--red); color:#fff; }
+.btn-success { background:var(--green-bg); color:var(--green); border:1px solid var(--green); }
+.btn-success:hover { background:var(--green); color:#fff; }
+
+/* ── FORMULÁRIOS ── */
+.form-group { margin-bottom:16px; }
+.form-label { display:block; font-size:13px; font-weight:500; color:var(--text); margin-bottom:6px; }
+.form-input, .form-select, .form-textarea {
+  width:100%; padding:9px 12px; font-size:14px;
+  border:1px solid var(--border); border-radius:8px;
+  color:var(--text); background:var(--white);
+  transition:border .15s;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  outline:none; border-color:var(--primary);
+  box-shadow:0 0 0 3px rgba(79,103,228,.1);
+}
+.form-textarea { resize:vertical; min-height:80px; }
+.form-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.form-row-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+
+/* ── TABELA ── */
+.table-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { text-align:left; padding:10px 12px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); border-bottom:2px solid var(--border); }
+td { padding:12px; border-bottom:1px solid var(--border); color:var(--text); vertical-align:middle; }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:var(--bg); }
+
+/* ── BADGES ── */
+.badge {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:3px 8px; border-radius:20px; font-size:11px; font-weight:600;
+}
+.badge-pending  { background:var(--yellow-bg); color:var(--yellow); }
+.badge-done     { background:var(--green-bg);  color:var(--green);  }
+.badge-cancelled{ background:var(--red-bg);    color:var(--red);    }
+
+/* ── CALENDÁRIO ── */
+.calendar-nav { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
+.calendar-nav h3 { font-size:16px; font-weight:600; }
+.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.cal-header { background:var(--bg); text-align:center; padding:8px 4px; font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; }
+.cal-day {
+  background:var(--white); min-height:90px; padding:6px;
+  cursor:pointer; transition:background .1s;
+}
+.cal-day:hover { background:rgba(79,103,228,.04); }
+.cal-day.today .cal-day-num { background:var(--primary); color:#fff; border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; }
+.cal-day.other-month .cal-day-num { color:var(--muted); opacity:.4; }
+.cal-day-num { font-size:13px; font-weight:600; margin-bottom:4px; width:24px; height:24px; display:flex; align-items:center; }
+.cal-event { font-size:10px; padding:2px 5px; border-radius:4px; margin-bottom:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cal-event.pending { background:rgba(245,158,11,.15); color:var(--yellow); }
+.cal-event.done    { background:rgba(16,185,129,.15); color:var(--green); }
+
+/* ── MODAL ── */
+.modal-overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,.4); z-index:100;
+  align-items:center; justify-content:center;
+}
+.modal-overlay.open { display:flex; }
+.modal {
+  background:var(--white); border-radius:var(--radius);
+  padding:24px; width:100%; max-width:560px;
+  max-height:90vh; overflow-y:auto;
+  box-shadow:0 20px 60px rgba(0,0,0,.15);
+}
+.modal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+.modal-title  { font-size:18px; font-weight:700; }
+.modal-close  { background:none; border:none; font-size:20px; cursor:pointer; color:var(--muted); padding:4px 8px; border-radius:6px; }
+.modal-close:hover { background:var(--bg); }
+.modal-footer { display:flex; gap:8px; justify-content:flex-end; margin-top:20px; }
+
+/* ── KPIs ── */
+.kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin-bottom:24px; }
+.kpi { background:var(--white); border:1px solid var(--border); border-radius:var(--radius); padding:16px 20px; }
+.kpi-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); margin-bottom:6px; }
+.kpi-value { font-size:26px; font-weight:700; }
+.kpi-sub   { font-size:12px; color:var(--muted); margin-top:2px; }
+.kpi.green .kpi-value { color:var(--green); }
+.kpi.red   .kpi-value { color:var(--red); }
+.kpi.blue  .kpi-value { color:var(--primary); }
+
+/* ── ALERT ── */
+.alert { padding:12px 16px; border-radius:8px; font-size:13px; margin-bottom:16px; display:none; }
+.alert.error   { background:var(--red-bg);    color:var(--red);   border:1px solid var(--red); display:block; }
+.alert.success { background:var(--green-bg);  color:var(--green); border:1px solid var(--green); display:block; }
+.alert.warning { background:var(--yellow-bg); color:var(--yellow); border:1px solid var(--yellow); display:block; }
+
+/* ── LOGIN ── */
+#page-login {
+  display:flex; align-items:center; justify-content:center;
+  min-height:100vh; background:var(--sidebar);
+  position:fixed; inset:0; z-index:200;
+}
+.login-box {
+  background:var(--white); border-radius:var(--radius);
+  padding:0; width:100%; max-width:400px; overflow:hidden;
+  box-shadow:0 32px 80px rgba(0,0,0,.5);
+  border:none;
+}
+.login-box-body { padding:32px 36px 36px; }
+.login-logo {
+  background:var(--sidebar);
+  padding:32px 36px 28px;
+  text-align:center;
+  border-bottom:1px solid rgba(255,239,224,.06);
+}
+.login-logo img { display:block; height:44px; margin:0 auto 10px; }
+.login-logo p  { font-size:12px; color:rgba(255,239,224,.4); margin-top:0; }
+
+/* ── TABS ── */
+.tab-row { display:flex; gap:4px; border-bottom:2px solid var(--border); margin-bottom:20px; }
+.tab-btn { padding:8px 16px; font-size:13px; font-weight:500; background:none; border:none; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; }
+.tab-btn.active { color:var(--primary); border-bottom-color:var(--primary); }
+.tab-panel { display:none; }
+.tab-panel.active { display:block; }
+
+/* ── RESPONSIVE ── */
+@media (max-width:768px) {
+  #sidebar { transform:translateX(-100%); }
+  #sidebar.open { transform:translateX(0); }
+  #main { margin-left:0; padding:16px; }
+  .form-row, .form-row-3 { grid-template-columns:1fr; }
+  .kpi-grid { grid-template-columns:1fr 1fr; }
+  #hamburger { display:flex; }
+}
+#hamburger {
+  display:none; position:fixed; top:16px; left:16px; z-index:60;
+  background:var(--sidebar); color:#FFEFE0; border:none; padding:8px; border-radius:8px; cursor:pointer;
+}
+.overlay-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,.3); z-index:40; }
+.overlay-backdrop.open { display:block; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="page-login">
+  <div class="login-box">
+    <div class="login-logo">
+      <img src="https://renanbrigante.com/wp-content/uploads/2025/05/rbn.svg" alt="Dr. Renan Brigante"/>
+      <p>Plataforma de agendamento</p>
+    </div>
+    <div class="login-box-body">
+      <div id="login-alert"></div>
+      <div class="form-group">
+        <label class="form-label">E-mail</label>
+        <input class="form-input" type="email" id="login-email" placeholder="seu@email.com" autocomplete="email"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Senha</label>
+        <input class="form-input" type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"/>
+      </div>
+      <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+  <button id="hamburger" onclick="toggleSidebar()">☰</button>
+  <div class="overlay-backdrop" id="backdrop" onclick="toggleSidebar()"></div>
+
+  <!-- SIDEBAR -->
+  <nav id="sidebar">
+    <div class="sidebar-logo">
+      <img src="https://renanbrigante.com/wp-content/uploads/2025/05/rbn.svg" alt="Dr. Renan Brigante"/>
+      <p>Gestão de atendimentos</p>
+    </div>
+    <div class="sidebar-user">
+      <div class="user-name" id="sb-name">—</div>
+      <div class="user-role" id="sb-role">—</div>
+    </div>
+    <div class="sidebar-nav" id="sidebar-nav"></div>
+    <div class="sidebar-footer">
+      <button class="btn-logout" onclick="doLogout()">Sair</button>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main id="main">
+
+    <!-- PÁGINA: CALENDÁRIO -->
+    <div class="page" id="page-calendario">
+      <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <div class="page-title">Calendário</div>
+          <div class="page-subtitle">Seus agendamentos do mês</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div id="cal-filtro-biomedica" style="display:none">
+            <select class="form-select" style="min-width:160px" id="cal-sel-biomedica" onchange="renderCalendar()">
+              <option value="">Todas as biomédicas</option>
+            </select>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="prevMonth()">‹</button>
+          <span id="cal-label" style="font-weight:600;font-size:14px;min-width:120px;text-align:center"></span>
+          <button class="btn btn-ghost btn-sm" onclick="nextMonth()">›</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="cal-grid" id="cal-grid"></div>
+      </div>
+
+      <div id="cal-day-detail" style="margin-top:20px;display:none">
+        <div class="card">
+          <div class="card-title" id="cal-day-title"></div>
+          <div id="cal-day-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PÁGINA: AGENDAMENTOS (LISTA) -->
+    <div class="page" id="page-agendamentos">
+      <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <div class="page-title">Agendamentos</div>
+          <div class="page-subtitle">Lista de todos os atendimentos</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" id="btn-importar" onclick="openImportModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Importar CSV
+          </button>
+          <button class="btn btn-primary" id="btn-novo" onclick="openEntryModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Novo Agendamento
+          </button>
+        </div>
+      </div>
+
+      <!-- Filtros -->
+      <div class="card" style="margin-bottom:16px;padding:16px">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+          <div>
+            <label class="form-label" style="margin-bottom:4px">De</label>
+            <input type="date" class="form-input" id="f-start" style="width:150px" onchange="loadEntries()"/>
+          </div>
+          <div>
+            <label class="form-label" style="margin-bottom:4px">Até</label>
+            <input type="date" class="form-input" id="f-end" style="width:150px" onchange="loadEntries()"/>
+          </div>
+          <div>
+            <label class="form-label" style="margin-bottom:4px">Paciente</label>
+            <input type="text" class="form-input" id="f-patient" style="width:160px" placeholder="Buscar paciente..." oninput="loadEntries()"/>
+          </div>
+          <div>
+            <label class="form-label" style="margin-bottom:4px">Plano</label>
+            <input type="text" class="form-input" id="f-plano" style="width:140px" placeholder="Buscar plano..." oninput="loadEntries()"/>
+          </div>
+          <div id="f-biomedica-wrap" style="display:none">
+            <label class="form-label" style="margin-bottom:4px">Biomédica</label>
+            <select class="form-select" id="f-biomedica" style="width:160px" onchange="loadEntries()">
+              <option value="">Todas</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label" style="margin-bottom:4px">Status</label>
+            <select class="form-select" id="f-status" style="width:170px" onchange="loadEntries()">
+              <option value="">Todos</option>
+              <option value="pendente">Pendente</option>
+              <option value="concluido">Concluído</option>
+              <option value="biomedica_faltou">Biomédica faltou</option>
+              <option value="paciente_cancelou">Paciente cancelou</option>
+            </select>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="clearFilters()">Limpar</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data / Hora</th>
+                <th>Paciente</th>
+                <th id="th-biomedica" style="display:none">Biomédica</th>
+                <th>Plano / Sessão</th>
+                <th>Tipo</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="entries-tbody"></tbody>
+          </table>
+        </div>
+        <div id="entries-empty" style="text-align:center;padding:32px;color:var(--muted);font-size:14px;display:none">
+          Nenhum agendamento encontrado
+        </div>
+      </div>
+    </div>
+
+    <!-- PÁGINA: FINANCEIRO -->
+    <div class="page" id="page-financeiro">
+      <div class="page-header">
+        <div class="page-title">Financeiro</div>
+        <div class="page-subtitle">Controle de saldos e repasses</div>
+      </div>
+
+      <!-- Filtros de data -->
+      <div class="card" style="margin-bottom:16px;padding:16px">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+          <div>
+            <label class="form-label" style="margin-bottom:4px">De</label>
+            <input type="date" class="form-input" id="fin-start" style="width:150px" onchange="loadFinanceiro()"/>
+          </div>
+          <div>
+            <label class="form-label" style="margin-bottom:4px">Até</label>
+            <input type="date" class="form-input" id="fin-end" style="width:150px" onchange="loadFinanceiro()"/>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="clearFinFilters()">Limpar filtros</button>
+        </div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpi-grid" id="fin-kpi"></div>
+
+      <!-- Tabs admin: por biomédica -->
+      <div id="fin-biomedica-tabs" style="display:none;margin-bottom:16px">
+        <div class="tab-row" id="fin-tabs"></div>
+      </div>
+
+      <!-- Conteúdo financeiro -->
+      <div id="fin-content"></div>
+    </div>
+
+    <!-- PÁGINA: PARÂMETROS -->
+    <div class="page" id="page-parametros">
+      <div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div class="page-title">Parâmetros</div>
+          <div class="page-subtitle">Configure os tipos de procedimento disponíveis</div>
+        </div>
+        <button class="btn btn-primary" onclick="openProcTypeModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Novo Tipo
+        </button>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <div class="card-title">Tipos de Atendimento / Procedimento</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Nome</th><th>Ordem</th><th>Status</th><th>Ações</th></tr>
+            </thead>
+            <tbody id="proc-types-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PÁGINA: ADMIN USUÁRIOS -->
+    <div class="page" id="page-usuarios">
+      <div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div class="page-title">Usuários</div>
+          <div class="page-subtitle">Gerenciar acessos ao sistema</div>
+        </div>
+        <button class="btn btn-primary" onclick="openUserModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Novo Usuário
+        </button>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th><th>Ações</th></tr>
+            </thead>
+            <tbody id="users-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MODAL: NOVO/EDITAR AGENDAMENTO -->
+<div class="modal-overlay" id="modal-entry">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-entry-title">Novo Agendamento</span>
+      <button class="modal-close" onclick="closeModal('modal-entry')">×</button>
+    </div>
+    <div id="modal-entry-alert"></div>
+    <input type="hidden" id="entry-id"/>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Biomédica *</label>
+        <select class="form-select" id="entry-biomedica"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tipo de atendimento</label>
+        <select class="form-select" id="entry-type"></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Data *</label>
+        <input class="form-input" type="date" id="entry-date" oninput="updateSessionPreview()"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Hora *</label>
+        <input class="form-input" type="time" id="entry-time" oninput="updateSessionPreview()"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Paciente *</label>
+      <input class="form-input" type="text" id="entry-patient" placeholder="Nome do paciente"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Endereço</label>
+      <input class="form-input" type="text" id="entry-address" placeholder="Rua, número, bairro"/>
+    </div>
+
+    <!-- Plano / Sessão -->
+    <div class="form-row-3">
+      <div class="form-group">
+        <label class="form-label">Plano</label>
+        <input class="form-input" type="text" id="entry-plano" placeholder="Ex: Pacote Bronze"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Sessão nº</label>
+        <input class="form-input" type="number" id="entry-sessao" min="1" placeholder="1"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Total de sessões</label>
+        <input class="form-input" type="number" id="entry-total-sessoes" min="1" placeholder="1" oninput="onTotalSessoesChange()"/>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Valor (R$)</label>
+        <input class="form-input" type="number" id="entry-value" min="0" step="0.01" placeholder="0,00"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Motorista</label>
+        <input class="form-input" type="text" id="entry-driver" placeholder="Nome do motorista"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Observação</label>
+      <textarea class="form-textarea" id="entry-note" placeholder="Observações adicionais..."></textarea>
+    </div>
+
+    <!-- Opção de criar em lote (só aparece em novos agendamentos com total > 1) -->
+    <div id="bulk-criar-opcao" style="display:none;margin-bottom:12px">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;font-weight:500;padding:12px;background:var(--accent);border-radius:8px;border:1px solid var(--border)">
+        <input type="checkbox" id="entry-criar-todas" onchange="updateSessionPreview()" style="width:16px;height:16px"/>
+        Criar todas as sessões do plano de uma vez
+      </label>
+    </div>
+
+    <!-- Prévia das sessões em lote -->
+    <div id="bulk-sessions-section" style="display:none;background:var(--bg);border-radius:8px;padding:16px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:500">Frequência:</span>
+        <select class="form-select" id="bulk-freq" style="width:auto" onchange="updateSessionPreview()">
+          <option value="1">Diária</option>
+          <option value="7" selected>Semanal</option>
+          <option value="14">Quinzenal</option>
+          <option value="30">Mensal</option>
+        </select>
+      </div>
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Prévia — ajuste datas/horários se necessário</div>
+      <div id="bulk-sessions-list" style="max-height:300px;overflow-y:auto"></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-entry')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-save-entry" onclick="saveEntry()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: PRESTAR CONTAS -->
+<div class="modal-overlay" id="modal-prestacao">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <span class="modal-title">Prestar Contas</span>
+      <button class="modal-close" onclick="closeModal('modal-prestacao')">×</button>
+    </div>
+    <div id="prestacao-info" style="background:var(--bg);border-radius:8px;padding:16px;margin-bottom:16px;font-size:13px;"></div>
+    <div id="modal-prestacao-alert"></div>
+    <input type="hidden" id="prestacao-entry-id"/>
+    <div class="form-group">
+      <label class="form-label">Valor total gasto (R$) *</label>
+      <input class="form-input" type="number" id="prestacao-value" min="0" step="0.01" placeholder="Ex: 25,50 (uber + pedágio)"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Comprovante (imagem ou PDF)</label>
+      <input class="form-input" type="file" id="prestacao-file" accept="image/*,.pdf" style="padding:6px"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Observação (opcional)</label>
+      <textarea class="form-textarea" id="prestacao-note" placeholder="Alguma observação sobre os gastos..."></textarea>
+    </div>
+    <div style="background:var(--green-bg);border:1px solid var(--green);border-radius:8px;padding:12px;font-size:13px;color:var(--green);margin-bottom:16px">
+      ✓ Ao confirmar, o atendimento será marcado como concluído e os gastos serão registrados no seu saldo.
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-prestacao')">Cancelar</button>
+      <button class="btn btn-success" onclick="confirmarPrestacao()">Confirmar Conclusão</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: DEPÓSITO -->
+<div class="modal-overlay" id="modal-deposito">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <span class="modal-title">Registrar Adiantamento</span>
+      <button class="modal-close" onclick="closeModal('modal-deposito')">×</button>
+    </div>
+    <div id="modal-deposito-alert"></div>
+    <input type="hidden" id="deposito-biomedica-id"/>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Data *</label>
+        <input class="form-input" type="date" id="deposito-date"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Valor (R$) *</label>
+        <input class="form-input" type="number" id="deposito-value" min="0" step="0.01"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Observação</label>
+      <input class="form-input" type="text" id="deposito-note" placeholder="Ex: PIX 30/06"/>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-deposito')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveDeposito()">Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: IMPORTAR CSV -->
+<div class="modal-overlay" id="modal-import">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <span class="modal-title">Importar Agendamentos em Lote</span>
+      <button class="modal-close" onclick="closeImportModal()">×</button>
+    </div>
+
+    <!-- PASSO 1: UPLOAD -->
+    <div id="import-step-upload">
+      <div style="background:var(--bg);border-radius:8px;padding:16px;margin-bottom:16px;font-size:13px;line-height:1.7">
+        <strong>Formato da planilha (colunas obrigatórias em negrito):</strong><br>
+        <code style="font-size:12px;background:#e8ecf4;padding:2px 6px;border-radius:4px;display:block;margin-top:8px">
+          <strong>data</strong> | <strong>hora</strong> | <strong>biomedica</strong> | tipo | <strong>paciente</strong> | endereco | valor | motorista | observacao
+        </code>
+        <span style="color:var(--muted);font-size:12px;margin-top:6px;display:block">
+          Data: DD/MM/AAAA ou AAAA-MM-DD · Biomédica: nome exato ou e-mail · Separador: vírgula ou ponto-e-vírgula
+        </span>
+      </div>
+      <div style="margin-bottom:16px">
+        <a onclick="downloadTemplate()" style="color:var(--primary);cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:4px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Baixar planilha modelo (.csv)
+        </a>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Selecione o arquivo CSV</label>
+        <input class="form-input" type="file" id="import-file" accept=".csv,text/csv" style="padding:6px"/>
+      </div>
+      <div id="modal-import-alert"></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeImportModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="runImport()">Importar</button>
+      </div>
+    </div>
+
+    <!-- PASSO 2: RESULTADO -->
+    <div id="import-step-result" style="display:none">
+      <div id="import-result-summary" style="margin-bottom:16px"></div>
+      <div id="import-result-errors" style="max-height:280px;overflow-y:auto"></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="resetImport()">Importar outro arquivo</button>
+        <button class="btn btn-primary" onclick="closeImportModal()">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: TIPO DE PROCEDIMENTO -->
+<div class="modal-overlay" id="modal-proc-type">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-proc-type-title">Novo Tipo de Procedimento</span>
+      <button class="modal-close" onclick="closeModal('modal-proc-type')">×</button>
+    </div>
+    <div id="modal-proc-type-alert"></div>
+    <input type="hidden" id="proc-type-id"/>
+    <div class="form-group">
+      <label class="form-label">Nome do procedimento *</label>
+      <input class="form-input" type="text" id="proc-type-name" placeholder="Ex: Coleta de Sangue, Injeção, Vacina..."/>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Ordem de exibição</label>
+        <input class="form-input" type="number" id="proc-type-order" min="0" value="0" placeholder="0"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select class="form-select" id="proc-type-active">
+          <option value="true">Ativo</option>
+          <option value="false">Inativo</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-proc-type')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveProcType()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: USUÁRIO -->
+<div class="modal-overlay" id="modal-user">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-user-title">Novo Usuário</span>
+      <button class="modal-close" onclick="closeModal('modal-user')">×</button>
+    </div>
+    <div id="modal-user-alert"></div>
+    <input type="hidden" id="user-id"/>
+    <div class="form-group">
+      <label class="form-label">Nome *</label>
+      <input class="form-input" type="text" id="user-name"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">E-mail *</label>
+      <input class="form-input" type="email" id="user-email"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Senha <span id="pass-hint" style="font-weight:400;color:var(--muted)">(deixe em branco para não alterar)</span></label>
+      <input class="form-input" type="password" id="user-pass"/>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Perfil *</label>
+        <select class="form-select" id="user-role">
+          <option value="biomedica">Biomédica</option>
+          <option value="agendador">Agendador</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select class="form-select" id="user-active">
+          <option value="true">Ativo</option>
+          <option value="false">Inativo</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-user')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveUser()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let token = localStorage.getItem('agenda_token');
+let currentUser = null;
+let biomedicas = [];
+let procedureTypes = [];
+let calYear, calMonth;
+let allEntries = [];
+
+// ── UTILS ──────────────────────────────────────────────────────
+function fmtDate(d) {
+  if (!d) return '—';
+  const [y,m,dd] = d.split('-');
+  return `${dd}/${m}/${y}`;
+}
+function fmtTime(t) {
+  if (!t) return '';
+  return t.substring(0,5);
+}
+function fmtMoney(v) {
+  return 'R$ ' + parseFloat(v || 0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function today() { return new Date().toISOString().slice(0,10); }
+function showAlert(el, msg, type='error') {
+  const e = document.getElementById(el);
+  e.className = `alert ${type}`;
+  e.textContent = msg;
+  setTimeout(() => { e.className = 'alert'; }, 4000);
+}
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+async function apiFetch(path, opts={}) {
+  const res = await fetch(API + path, {
+    ...opts,
+    headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token, ...(opts.headers||{}) }
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Erro na requisição');
+  return data;
+}
+
+// ── AUTH ───────────────────────────────────────────────────────
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  const alert = document.getElementById('login-alert');
+  alert.className = 'alert';
+  try {
+    const data = await apiFetch('/api/auth/login', { method:'POST', body: JSON.stringify({email,password:pass}) });
+    token = data.token;
+    localStorage.setItem('agenda_token', token);
+    currentUser = data.user;
+    bootApp();
+  } catch(e) {
+    showAlert('login-alert', e.message);
+  }
+}
+document.getElementById('login-pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+function doLogout() {
+  localStorage.removeItem('agenda_token');
+  token = null; currentUser = null;
+  location.reload();
+}
+
+// ── BOOT ───────────────────────────────────────────────────────
+async function bootApp() {
+  if (!token) { return; }
+  try {
+    currentUser = await apiFetch('/api/auth/me');
+  } catch {
+    localStorage.removeItem('agenda_token');
+    return;
+  }
+  document.getElementById('page-login').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('sb-name').textContent = currentUser.name;
+  const roleLabel = {biomedica:'Biomédica', agendador:'Agendador', admin:'Administrador'};
+  document.getElementById('sb-role').textContent = roleLabel[currentUser.role] || currentUser.role;
+
+  buildNav();
+
+  if (['admin','agendador'].includes(currentUser.role)) {
+    biomedicas = await apiFetch('/api/biomedicas');
+  }
+  // load procedure types for appointment form
+  procedureTypes = await apiFetch('/api/procedure-types?active=true');
+
+  const startPage = currentUser.role === 'biomedica' ? 'calendario' : 'agendamentos';
+  navigate(startPage);
+}
+
+function buildNav() {
+  const nav = document.getElementById('sidebar-nav');
+  const items = [];
+
+  if (currentUser.role === 'biomedica') {
+    items.push({ id:'calendario',   icon:'📅', label:'Calendário'    });
+    items.push({ id:'agendamentos', icon:'📋', label:'Meus Atendimentos' });
+    items.push({ id:'financeiro',   icon:'💰', label:'Financeiro'    });
+  } else if (currentUser.role === 'agendador') {
+    items.push({ id:'agendamentos', icon:'📋', label:'Agendamentos'  });
+    items.push({ id:'calendario',   icon:'📅', label:'Calendário'    });
+  } else { // admin
+    items.push({ id:'agendamentos', icon:'📋', label:'Agendamentos'  });
+    items.push({ id:'calendario',   icon:'📅', label:'Calendário'    });
+    items.push({ id:'financeiro',   icon:'💰', label:'Financeiro'    });
+    items.push({ id:'usuarios',     icon:'👥', label:'Usuários'      });
+    items.push({ id:'parametros',   icon:'⚙️', label:'Parâmetros'    });
+  }
+
+  nav.innerHTML = items.map(it => `
+    <button class="nav-item" data-page="${it.id}" onclick="navigate('${it.id}')">
+      <span>${it.icon}</span> ${it.label}
+    </button>
+  `).join('');
+}
+
+function navigate(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => {
+    n.classList.toggle('active', n.dataset.page === page);
+  });
+  const el = document.getElementById('page-'+page);
+  if (el) el.classList.add('active');
+  if (typeof window['open'+capitalize(page)] === 'function') window['open'+capitalize(page)]();
+
+  if (page === 'calendario') loadCalendar();
+  if (page === 'agendamentos') loadEntries();
+  if (page === 'financeiro') loadFinanceiro();
+  if (page === 'usuarios') loadUsers();
+  if (page === 'parametros') loadParametros();
+
+  if (window.innerWidth <= 768) {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('backdrop').classList.remove('open');
+  }
+}
+function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('backdrop').classList.toggle('open');
+}
+
+// ── CALENDÁRIO ─────────────────────────────────────────────────
+function loadCalendar() {
+  const now = new Date();
+  if (!calYear)  calYear  = now.getFullYear();
+  if (!calMonth) calMonth = now.getMonth();
+
+  // mostrar filtro de biomedica para admin/agendador
+  const filtroWrap = document.getElementById('cal-filtro-biomedica');
+  if (['admin','agendador'].includes(currentUser?.role)) {
+    filtroWrap.style.display = 'block';
+    const sel = document.getElementById('cal-sel-biomedica');
+    if (sel.options.length <= 1) {
+      biomedicas.forEach(b => {
+        const o = document.createElement('option');
+        o.value = b.id; o.textContent = b.name;
+        sel.appendChild(o);
+      });
+    }
+  }
+  renderCalendar();
+}
+
+async function renderCalendar() {
+  const first = new Date(calYear, calMonth, 1);
+  const last  = new Date(calYear, calMonth+1, 0);
+  const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  document.getElementById('cal-label').textContent = `${months[calMonth]} ${calYear}`;
+
+  const start = first.toISOString().slice(0,10);
+  const end   = last.toISOString().slice(0,10);
+  const bid   = document.getElementById('cal-sel-biomedica')?.value || '';
+
+  let url = `/api/entries?start=${start}&end=${end}`;
+  if (bid) url += `&biomedica_id=${bid}`;
+
+  let entries = [];
+  try { entries = await apiFetch(url); } catch {}
+
+  // index entries by date (normalize ISO timestamp to YYYY-MM-DD)
+  const byDate = {};
+  entries.forEach(e => {
+    const dateKey = e.date?.slice?.(0, 10) || '';
+    if (!byDate[dateKey]) byDate[dateKey] = [];
+    byDate[dateKey].push(e);
+  });
+
+  const grid = document.getElementById('cal-grid');
+  const days = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  let html = days.map(d => `<div class="cal-header">${d}</div>`).join('');
+
+  const todayStr = today();
+  const startDow = first.getDay();
+  // prev month padding
+  for (let i=0; i<startDow; i++) {
+    const d = new Date(calYear, calMonth, -startDow+i+1);
+    html += `<div class="cal-day other-month"><div class="cal-day-num">${d.getDate()}</div></div>`;
+  }
+  // current month
+  for (let d=1; d<=last.getDate(); d++) {
+    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = dateStr === todayStr;
+    const evts    = byDate[dateStr] || [];
+    let evtHtml = evts.slice(0,3).map(e =>
+      `<div class="cal-event ${e.status}" title="${e.patient}">${fmtTime(e.time)} ${e.patient}</div>`
+    ).join('');
+    if (evts.length > 3) evtHtml += `<div style="font-size:10px;color:var(--muted)">+${evts.length-3} mais</div>`;
+    html += `<div class="cal-day${isToday?' today':''}" onclick="showDayDetail('${dateStr}',${JSON.stringify(evts).replace(/"/g,'&quot;')})">
+      <div class="cal-day-num">${d}</div>
+      ${evtHtml}
+    </div>`;
+  }
+  // next month padding
+  const totalCells = startDow + last.getDate();
+  const remaining  = (7 - totalCells % 7) % 7;
+  for (let i=1; i<=remaining; i++) {
+    html += `<div class="cal-day other-month"><div class="cal-day-num">${i}</div></div>`;
+  }
+  grid.innerHTML = html;
+
+  document.getElementById('cal-day-detail').style.display = 'none';
+}
+
+function showDayDetail(dateStr, evts) {
+  const detail = document.getElementById('cal-day-detail');
+  document.getElementById('cal-day-title').textContent = `Atendimentos em ${fmtDate(dateStr)}`;
+  if (!evts.length) {
+    document.getElementById('cal-day-list').innerHTML = '<p style="color:var(--muted);font-size:13px">Nenhum atendimento neste dia.</p>';
+  } else {
+    document.getElementById('cal-day-list').innerHTML = evts.map(e => entryCard(e)).join('');
+  }
+  detail.style.display = 'block';
+  detail.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function entryCard(e) {
+  const isPendente  = e.status === 'pendente';
+  const canComplete = currentUser.role !== 'agendador' && isPendente;
+  const canEdit     = ['admin','agendador'].includes(currentUser.role) && isPendente;
+  const canStatus   = ['admin','agendador'].includes(currentUser.role) && isPendente;
+  const sessaoInfo  = e.sessao ? ` · Sessão ${e.sessao}${e.total_sessoes ? '/'+e.total_sessoes : ''}` : '';
+  const planoInfo   = e.plano ? `<div style="font-size:11px;color:var(--primary);font-weight:600;margin-top:2px">${e.plano}${sessaoInfo}</div>` : '';
+  return `<div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;display:flex;align-items:flex-start;gap:12px">
+    <div style="flex:1">
+      <div style="font-weight:600;font-size:14px">${e.patient}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px">${fmtTime(e.time)} · ${e.type||'Coleta'} · ${e.biomedica_name}</div>
+      ${planoInfo}
+      ${e.address ? `<div style="font-size:12px;color:var(--muted)">${e.address}</div>` : ''}
+      <div style="margin-top:6px">${statusBadge(e.status)}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="openEntryModal(${JSON.stringify(e).replace(/"/g,'&quot;')})">✏️</button>` : ''}
+      ${canComplete ? `<button class="btn btn-success btn-sm" onclick="openPrestacao(${JSON.stringify(e).replace(/"/g,'&quot;')})">✓</button>` : ''}
+      ${canStatus ? `<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="marcarStatus(${e.id},'biomedica_faltou')" title="Biomédica faltou">🚫</button>` : ''}
+      ${canStatus ? `<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="marcarStatus(${e.id},'paciente_cancelou')" title="Paciente cancelou">❌</button>` : ''}
+    </div>
+  </div>`;
+}
+
+function prevMonth() {
+  calMonth--;
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  renderCalendar();
+}
+function nextMonth() {
+  calMonth++;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  renderCalendar();
+}
+
+// ── AGENDAMENTOS (LISTA) ───────────────────────────────────────
+function setupAgendamentosPage() {
+  // mostrar coluna biomédica para admin/agendador
+  if (['admin','agendador'].includes(currentUser?.role)) {
+    document.getElementById('th-biomedica').style.display = '';
+    document.getElementById('f-biomedica-wrap').style.display = '';
+    const sel = document.getElementById('f-biomedica');
+    if (sel.options.length <= 1) {
+      biomedicas.forEach(b => {
+        const o = document.createElement('option');
+        o.value = b.id; o.textContent = b.name;
+        sel.appendChild(o);
+      });
+    }
+  }
+  if (currentUser?.role === 'biomedica') {
+    document.getElementById('btn-novo').style.display = 'none';
+    document.getElementById('btn-importar').style.display = 'none';
+  }
+  // default dates: current month
+  const now = new Date();
+  const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
+  const last = new Date(y, now.getMonth()+1, 0).getDate();
+  document.getElementById('f-start').value = `${y}-${m}-01`;
+  document.getElementById('f-end').value   = `${y}-${m}-${String(last).padStart(2,'0')}`;
+}
+
+let agendamentosSetup = false;
+async function loadEntries() {
+  if (!agendamentosSetup) { setupAgendamentosPage(); agendamentosSetup = true; }
+  const start   = document.getElementById('f-start').value;
+  const end     = document.getElementById('f-end').value;
+  const bid     = document.getElementById('f-biomedica').value;
+  const st      = document.getElementById('f-status').value;
+  const patient = document.getElementById('f-patient').value.trim();
+  const plano   = document.getElementById('f-plano').value.trim();
+
+  let url = '/api/entries?';
+  if (start)   url += `start=${encodeURIComponent(start)}&`;
+  if (end)     url += `end=${encodeURIComponent(end)}&`;
+  if (bid)     url += `biomedica_id=${bid}&`;
+  if (st)      url += `status=${encodeURIComponent(st)}&`;
+  if (patient) url += `patient=${encodeURIComponent(patient)}&`;
+  if (plano)   url += `plano=${encodeURIComponent(plano)}&`;
+
+  try {
+    allEntries = await apiFetch(url);
+    renderEntriesTable(allEntries);
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+function renderEntriesTable(entries) {
+  const tbody = document.getElementById('entries-tbody');
+  const empty = document.getElementById('entries-empty');
+  const showBio = ['admin','agendador'].includes(currentUser?.role);
+
+  if (!entries.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  tbody.innerHTML = entries.map(e => {
+    const isPendente  = e.status === 'pendente';
+    const canEdit     = ['admin','agendador'].includes(currentUser.role) && isPendente;
+    const canDelete   = ['admin','agendador'].includes(currentUser.role) && isPendente;
+    const canComplete = currentUser.role !== 'agendador' && isPendente;
+    const canStatus   = ['admin','agendador'].includes(currentUser.role) && isPendente;
+    const sessaoInfo  = e.plano || e.sessao
+      ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${e.plano||''}${e.sessao ? ` · Sessão ${e.sessao}${e.total_sessoes ? '/' + e.total_sessoes : ''}` : ''}</div>`
+      : '';
+    return `<tr>
+      <td><strong>${fmtDate(e.date?.slice?.(0,10))}</strong><br><span style="color:var(--muted);font-size:12px">${fmtTime(e.time)}</span></td>
+      <td>${e.patient}${sessaoInfo}</td>
+      ${showBio ? `<td>${e.biomedica_name}</td>` : ''}
+      <td>${e.plano ? `<span style="font-size:12px">${e.plano}</span><br>` : ''}<span style="font-size:12px;color:var(--muted)">${e.sessao ? `Sessão ${e.sessao}${e.total_sessoes?'/'+e.total_sessoes:''} · ` : ''}${e.type||'Coleta'}</span></td>
+      <td>${statusBadge(e.status)}</td>
+      <td>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick='openEntryModal(${JSON.stringify(e)})'>✏️</button>` : ''}
+          ${canComplete ? `<button class="btn btn-success btn-sm" onclick='openPrestacao(${JSON.stringify(e)})'>✓ Concluir</button>` : ''}
+          ${canStatus ? `<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="marcarStatus(${e.id},'biomedica_faltou')" title="Biomédica faltou">🚫</button>` : ''}
+          ${canStatus ? `<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="marcarStatus(${e.id},'paciente_cancelou')" title="Paciente cancelou">❌</button>` : ''}
+          ${canDelete ? `<button class="btn btn-danger btn-sm" onclick="deleteEntry(${e.id})">🗑️</button>` : ''}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function statusBadge(s) {
+  const map = {
+    pendente:          '⏳ Pendente',
+    concluido:         '✅ Concluído',
+    biomedica_faltou:  '🚫 Biomédica faltou',
+    paciente_cancelou: '❌ Paciente cancelou',
+  };
+  const cls = {
+    pendente:          'pending',
+    concluido:         'done',
+    biomedica_faltou:  'cancelled',
+    paciente_cancelou: 'cancelled',
+  };
+  return `<span class="badge badge-${cls[s]||'pending'}">${map[s]||s}</span>`;
+}
+
+function clearFilters() {
+  document.getElementById('f-status').value   = '';
+  document.getElementById('f-biomedica').value = '';
+  document.getElementById('f-patient').value  = '';
+  document.getElementById('f-plano').value    = '';
+  const now = new Date();
+  const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
+  document.getElementById('f-start').value = `${y}-${m}-01`;
+  document.getElementById('f-end').value   = `${y}-${m}-${new Date(y,now.getMonth()+1,0).getDate()}`;
+  loadEntries();
+}
+
+// ── MODAL ENTRY ────────────────────────────────────────────────
+function openEntryModal(entry=null) {
+  const isNew = !entry;
+  document.getElementById('modal-entry-title').textContent = isNew ? 'Novo Agendamento' : 'Editar Agendamento';
+  document.getElementById('entry-id').value          = entry?.id || '';
+  document.getElementById('entry-date').value        = entry?.date?.slice?.(0,10) || today();
+  document.getElementById('entry-time').value        = entry ? fmtTime(entry.time) : '';
+  document.getElementById('entry-patient').value     = entry?.patient || '';
+  document.getElementById('entry-address').value     = entry?.address || '';
+  document.getElementById('entry-value').value       = entry?.value || '';
+  document.getElementById('entry-driver').value      = entry?.driver || '';
+  document.getElementById('entry-note').value        = entry?.note || '';
+  document.getElementById('entry-plano').value       = entry?.plano || '';
+  document.getElementById('entry-sessao').value      = entry?.sessao || '';
+  document.getElementById('entry-total-sessoes').value = entry?.total_sessoes || '';
+  document.getElementById('modal-entry-alert').className = 'alert';
+
+  // bulk options only for new entries
+  const bulkOpcao = document.getElementById('bulk-criar-opcao');
+  const bulkSection = document.getElementById('bulk-sessions-section');
+  const criarTodas = document.getElementById('entry-criar-todas');
+  if (isNew) {
+    bulkOpcao.style.display = 'none'; // will show via onTotalSessoesChange
+    bulkSection.style.display = 'none';
+    criarTodas.checked = false;
+  } else {
+    bulkOpcao.style.display = 'none';
+    bulkSection.style.display = 'none';
+  }
+
+  // populate biomedica select
+  const sel = document.getElementById('entry-biomedica');
+  sel.innerHTML = '<option value="">Selecione...</option>' +
+    biomedicas.map(b => `<option value="${b.id}" ${entry?.biomedica_id==b.id?'selected':''}>${b.name}</option>`).join('');
+
+  // populate procedure types
+  const typeEl = document.getElementById('entry-type');
+  typeEl.innerHTML = procedureTypes.length
+    ? procedureTypes.map(t => `<option value="${t.name}" ${entry?.type===t.name?'selected':''}>${t.name}</option>`).join('')
+    : '<option value="Coleta">Coleta</option>';
+  if (entry?.type && !procedureTypes.find(t=>t.name===entry.type)) {
+    typeEl.innerHTML += `<option value="${entry.type}" selected>${entry.type}</option>`;
+  }
+
+  document.getElementById('btn-save-entry').textContent = 'Salvar';
+  openModal('modal-entry');
+}
+
+function onTotalSessoesChange() {
+  const total = parseInt(document.getElementById('entry-total-sessoes').value) || 0;
+  const entryId = document.getElementById('entry-id').value;
+  const bulkOpcao = document.getElementById('bulk-criar-opcao');
+  // só mostra opção em lote para novos agendamentos com mais de 1 sessão
+  bulkOpcao.style.display = (total > 1 && !entryId) ? 'block' : 'none';
+  if (total <= 1 || entryId) {
+    document.getElementById('entry-criar-todas').checked = false;
+    document.getElementById('bulk-sessions-section').style.display = 'none';
+  } else {
+    updateSessionPreview();
+  }
+}
+
+function updateSessionPreview() {
+  const criarTodas = document.getElementById('entry-criar-todas').checked;
+  const total      = parseInt(document.getElementById('entry-total-sessoes').value) || 0;
+  const section    = document.getElementById('bulk-sessions-section');
+  const btn        = document.getElementById('btn-save-entry');
+
+  if (!criarTodas || total < 2) {
+    section.style.display = 'none';
+    btn.textContent = 'Salvar';
+    return;
+  }
+
+  section.style.display = 'block';
+  btn.textContent = `Criar ${total} sessões`;
+
+  const startDate  = document.getElementById('entry-date').value;
+  const startTime  = document.getElementById('entry-time').value || '09:00';
+  const freq       = parseInt(document.getElementById('bulk-freq').value) || 7;
+  const sessaoBase = parseInt(document.getElementById('entry-sessao').value) || 1;
+
+  if (!startDate) return;
+
+  const list = document.getElementById('bulk-sessions-list');
+  let html = '';
+  for (let i = 0; i < total; i++) {
+    const d = new Date(startDate + 'T12:00:00');
+    d.setDate(d.getDate() + freq * i);
+    const dateStr = d.toISOString().slice(0, 10);
+    html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <span style="font-size:12px;color:var(--muted);min-width:64px;flex-shrink:0">Sessão ${sessaoBase + i}</span>
+      <input type="date" class="form-input" style="flex:1" value="${dateStr}" id="bulk-date-${i}"/>
+      <input type="time" class="form-input" style="width:105px;flex-shrink:0" value="${startTime}" id="bulk-time-${i}"/>
+    </div>`;
+  }
+  list.innerHTML = html;
+}
+
+async function saveEntry() {
+  if (document.getElementById('entry-criar-todas').checked) {
+    await saveBulkEntries(); return;
+  }
+
+  const id = document.getElementById('entry-id').value;
+  const body = {
+    biomedica_id:  document.getElementById('entry-biomedica').value,
+    date:          document.getElementById('entry-date').value,
+    time:          document.getElementById('entry-time').value,
+    type:          document.getElementById('entry-type').value,
+    patient:       document.getElementById('entry-patient').value.trim(),
+    address:       document.getElementById('entry-address').value.trim(),
+    value:         document.getElementById('entry-value').value || 0,
+    driver:        document.getElementById('entry-driver').value.trim(),
+    note:          document.getElementById('entry-note').value.trim(),
+    plano:         document.getElementById('entry-plano').value.trim(),
+    sessao:        document.getElementById('entry-sessao').value || null,
+    total_sessoes: document.getElementById('entry-total-sessoes').value || null,
+  };
+  if (!body.biomedica_id || !body.date || !body.time || !body.patient) {
+    showAlert('modal-entry-alert', 'Preencha os campos obrigatórios (biomédica, data, hora e paciente)');
+    return;
+  }
+  try {
+    if (id) {
+      await apiFetch(`/api/entries/${id}`, { method:'PUT', body: JSON.stringify(body) });
+    } else {
+      await apiFetch('/api/entries', { method:'POST', body: JSON.stringify(body) });
+    }
+    closeModal('modal-entry');
+    loadEntries();
+    renderCalendar();
+  } catch(e) {
+    showAlert('modal-entry-alert', e.message);
+  }
+}
+
+async function saveBulkEntries() {
+  const total      = parseInt(document.getElementById('entry-total-sessoes').value) || 0;
+  const sessaoBase = parseInt(document.getElementById('entry-sessao').value) || 1;
+  const base = {
+    biomedica_id:  document.getElementById('entry-biomedica').value,
+    type:          document.getElementById('entry-type').value,
+    patient:       document.getElementById('entry-patient').value.trim(),
+    address:       document.getElementById('entry-address').value.trim(),
+    value:         document.getElementById('entry-value').value || 0,
+    driver:        document.getElementById('entry-driver').value.trim(),
+    note:          document.getElementById('entry-note').value.trim(),
+    plano:         document.getElementById('entry-plano').value.trim(),
+    total_sessoes: total,
+  };
+  if (!base.biomedica_id || !base.patient) {
+    showAlert('modal-entry-alert', 'Preencha biomédica e paciente');
+    return;
+  }
+  const entries = [];
+  for (let i = 0; i < total; i++) {
+    const date = document.getElementById(`bulk-date-${i}`)?.value;
+    const time = document.getElementById(`bulk-time-${i}`)?.value;
+    if (!date || !time) {
+      showAlert('modal-entry-alert', `Preencha data e hora da sessão ${sessaoBase + i}`);
+      return;
+    }
+    entries.push({ ...base, date, time, sessao: sessaoBase + i });
+  }
+  try {
+    const btn = document.getElementById('btn-save-entry');
+    btn.textContent = 'Salvando...'; btn.disabled = true;
+    await apiFetch('/api/entries/bulk', { method:'POST', body: JSON.stringify({ entries }) });
+    closeModal('modal-entry');
+    loadEntries();
+    renderCalendar();
+  } catch(e) {
+    showAlert('modal-entry-alert', e.message);
+    document.getElementById('btn-save-entry').disabled = false;
+    updateSessionPreview();
+  }
+}
+
+async function marcarStatus(id, status) {
+  const labels = { biomedica_faltou: 'Biomédica faltou?', paciente_cancelou: 'Paciente cancelou?' };
+  if (!confirm(labels[status] || 'Confirmar alteração de status?')) return;
+  try {
+    await apiFetch(`/api/entries/${id}/status`, { method:'PATCH', body: JSON.stringify({ status }) });
+    loadEntries();
+    renderCalendar();
+  } catch(e) { alert(e.message); }
+}
+
+async function deleteEntry(id) {
+  if (!confirm('Deletar este agendamento?')) return;
+  try {
+    await apiFetch(`/api/entries/${id}`, { method:'DELETE' });
+    loadEntries();
+    renderCalendar();
+  } catch(e) {
+    alert(e.message);
+  }
+}
+
+// ── PRESTAR CONTAS ─────────────────────────────────────────────
+function openPrestacao(entry) {
+  document.getElementById('prestacao-entry-id').value = entry.id;
+  document.getElementById('prestacao-note').value = '';
+  document.getElementById('prestacao-value').value = entry.value || '';
+  document.getElementById('prestacao-file').value = '';
+  document.getElementById('modal-prestacao-alert').className = 'alert';
+  document.getElementById('prestacao-info').innerHTML = `
+    <strong>${entry.patient}</strong><br>
+    <span style="color:var(--muted)">${fmtDate(entry.date?.slice?.(0,10))} às ${fmtTime(entry.time)}</span><br>
+    ${entry.address ? `<span style="color:var(--muted)">${entry.address}</span><br>` : ''}
+    ${entry.type ? `<span style="color:var(--muted)">${entry.type}</span>` : ''}
+  `;
+  openModal('modal-prestacao');
+}
+
+async function confirmarPrestacao() {
+  const id    = document.getElementById('prestacao-entry-id').value;
+  const note  = document.getElementById('prestacao-note').value.trim();
+  const value = document.getElementById('prestacao-value').value;
+  const file  = document.getElementById('prestacao-file').files[0];
+
+  if (!value) { showAlert('modal-prestacao-alert', 'Informe o valor total gasto'); return; }
+
+  const fd = new FormData();
+  fd.append('value', value);
+  if (note) fd.append('note', note);
+  if (file) fd.append('comprovante', file);
+
+  try {
+    const res = await fetch(`/api/entries/${id}/prestar-contas`, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+      body: fd
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro na requisição');
+    closeModal('modal-prestacao');
+    loadEntries();
+    renderCalendar();
+    if (document.getElementById('page-financeiro').classList.contains('active')) loadFinanceiro();
+  } catch(e) {
+    showAlert('modal-prestacao-alert', e.message);
+  }
+}
+
+// ── FINANCEIRO ─────────────────────────────────────────────────
+let finActiveBiomedica = null;
+
+function clearFinFilters() {
+  document.getElementById('fin-start').value = '';
+  document.getElementById('fin-end').value = '';
+  loadFinanceiro();
+}
+
+async function loadFinanceiro() {
+  const start = document.getElementById('fin-start')?.value || '';
+  const end   = document.getElementById('fin-end')?.value   || '';
+  const params = [];
+  if (start) params.push(`start=${start}`);
+  if (end)   params.push(`end=${end}`);
+  const qs = params.length ? '?' + params.join('&') : '';
+
+  try {
+    const resumo = await apiFetch('/api/financeiro/resumo' + qs);
+
+    if (currentUser.role === 'biomedica') {
+      renderFinResumo([resumo], false, start, end);
+    } else {
+      const list = Array.isArray(resumo) ? resumo : [resumo];
+      renderFinResumo(list, true, start, end);
+    }
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+function renderFinResumo(list, isAdmin, start, end) {
+  const kpiEl = document.getElementById('fin-kpi');
+  const tabsWrap = document.getElementById('fin-biomedica-tabs');
+  const tabsEl   = document.getElementById('fin-tabs');
+
+  const totalDeposited = list.reduce((a,b) => a + (b.total_deposited||0), 0);
+  const totalExpenses  = list.reduce((a,b) => a + (b.total_expenses||0), 0);
+  const totalBal       = totalDeposited - totalExpenses;
+
+  kpiEl.innerHTML = `
+    <div class="kpi blue"><div class="kpi-label">Total depositado</div><div class="kpi-value">${fmtMoney(totalDeposited)}</div><div class="kpi-sub">Adiantamentos registrados</div></div>
+    <div class="kpi red"><div class="kpi-label">Total gasto</div><div class="kpi-value">${fmtMoney(totalExpenses)}</div><div class="kpi-sub">Prestações de contas</div></div>
+    <div class="kpi ${totalBal>=0?'green':'red'}"><div class="kpi-label">Saldo disponível</div><div class="kpi-value">${fmtMoney(Math.abs(totalBal))}</div><div class="kpi-sub">${totalBal>=0?'Na conta das biomédicas':'A repor'}</div></div>
+  `;
+
+  if (isAdmin && list.length > 1) {
+    tabsWrap.style.display = 'block';
+    tabsEl.innerHTML = list.map(b =>
+      `<button class="tab-btn${finActiveBiomedica===b.biomedica_id?' active':''}" onclick="selectFinTab(${b.biomedica_id},'${start||''}','${end||''}')">${b.biomedica_name}</button>`
+    ).join('');
+    if (!finActiveBiomedica && list.length) selectFinTab(list[0].biomedica_id, start, end, list);
+    else renderFinContent(list.find(b=>b.biomedica_id===finActiveBiomedica)||list[0], true, start, end);
+  } else {
+    tabsWrap.style.display = 'none';
+    renderFinContent(list[0], isAdmin, start, end);
+  }
+}
+
+async function selectFinTab(bid, start, end, list) {
+  finActiveBiomedica = bid;
+  document.querySelectorAll('#fin-tabs .tab-btn').forEach(b => {
+    b.classList.toggle('active', b.onclick.toString().includes(`(${bid},`));
+  });
+  const resumo = list ? list.find(b=>b.biomedica_id===bid) : null;
+  renderFinContent(resumo, true, start||'', end||'');
+}
+
+async function renderFinContent(resumo, isAdmin, start, end) {
+  const el = document.getElementById('fin-content');
+  if (!resumo) { el.innerHTML = ''; return; }
+
+  const qs = [
+    `biomedica_id=${resumo.biomedica_id}`,
+    start ? `start=${start}` : '',
+    end   ? `end=${end}`   : '',
+  ].filter(Boolean).join('&');
+
+  let deposits = [];
+  try { deposits = await apiFetch(`/api/financeiro/deposits?${qs}`); } catch {}
+
+  let entriesHtml = '';
+  try {
+    const entries = await apiFetch(`/api/entries?status=concluido&${qs}`);
+    if (entries.length) {
+      entriesHtml = `
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-title">Gastos prestados · ${resumo.biomedica_name||'Biomédica'}</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Data</th><th>Paciente</th><th>Tipo</th><th>Gasto</th><th>Comprovante</th></tr></thead>
+              <tbody>${entries.map(e=>`<tr>
+                <td>${fmtDate(e.date?.slice?.(0,10))}</td>
+                <td>${e.patient}</td>
+                <td>${e.type||'Coleta'}</td>
+                <td>${fmtMoney(e.value)}</td>
+                <td>${e.receipt_path ? `<a href="${e.receipt_path}" target="_blank" style="color:var(--primary);font-size:12px">Ver comprovante</a>` : '—'}</td>
+              </tr>`).join('')}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+  } catch {}
+
+  const depositRows = deposits.map(d => `<tr>
+    <td>${fmtDate(d.date?.slice?.(0,10))}</td>
+    <td>${fmtMoney(d.value)}</td>
+    <td>${d.note||'—'}</td>
+    <td>${d.created_by_name||'—'}</td>
+    ${isAdmin ? `<td><button class="btn btn-danger btn-sm" onclick="deleteDeposito(${d.id})">🗑️</button></td>` : '<td></td>'}
+  </tr>`).join('');
+
+  const bal = resumo.balance ?? 0;
+  el.innerHTML = `
+    ${entriesHtml}
+    <div class="card">
+      <div class="card-title" style="justify-content:space-between">
+        <span>Adiantamentos · ${resumo.biomedica_name||'Biomédica'}</span>
+        ${isAdmin ? `<button class="btn btn-primary btn-sm" onclick="openDeposito(${resumo.biomedica_id})">+ Registrar Adiantamento</button>` : ''}
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+        <div class="kpi" style="flex:1;min-width:130px"><div class="kpi-label">Depositado</div><div class="kpi-value" style="font-size:18px;color:var(--primary)">${fmtMoney(resumo.total_deposited)}</div><div class="kpi-sub">Adiantado pelo admin</div></div>
+        <div class="kpi" style="flex:1;min-width:130px"><div class="kpi-label">Gasto</div><div class="kpi-value" style="font-size:18px;color:var(--red)">${fmtMoney(resumo.total_expenses)}</div><div class="kpi-sub">Prestações confirmadas</div></div>
+        <div class="kpi" style="flex:1;min-width:130px"><div class="kpi-label">Saldo</div><div class="kpi-value" style="font-size:18px;color:${bal>=0?'var(--green)':'var(--red)'}">${fmtMoney(Math.abs(bal))}</div><div class="kpi-sub">${bal>=0?'disponível na conta':'a repor'}</div></div>
+      </div>
+      ${deposits.length ? `<div class="table-wrap"><table>
+        <thead><tr><th>Data</th><th>Valor</th><th>Obs.</th><th>Por</th><th></th></tr></thead>
+        <tbody>${depositRows}</tbody>
+      </table></div>` : '<p style="color:var(--muted);font-size:13px">Nenhum adiantamento registrado ainda.</p>'}
+    </div>
+  `;
+}
+
+function openDeposito(bid) {
+  document.getElementById('deposito-biomedica-id').value = bid;
+  document.getElementById('deposito-date').value = today();
+  document.getElementById('deposito-value').value = '';
+  document.getElementById('deposito-note').value = '';
+  document.getElementById('modal-deposito-alert').className = 'alert';
+  openModal('modal-deposito');
+}
+
+async function saveDeposito() {
+  const bid   = document.getElementById('deposito-biomedica-id').value;
+  const date  = document.getElementById('deposito-date').value;
+  const value = document.getElementById('deposito-value').value;
+  const note  = document.getElementById('deposito-note').value;
+  if (!date || !value) { showAlert('modal-deposito-alert', 'Data e valor são obrigatórios'); return; }
+  try {
+    await apiFetch('/api/financeiro/deposits', { method:'POST', body: JSON.stringify({biomedica_id:bid, date, value, note}) });
+    closeModal('modal-deposito');
+    loadFinanceiro();
+  } catch(e) {
+    showAlert('modal-deposito-alert', e.message);
+  }
+}
+
+async function deleteDeposito(id) {
+  if (!confirm('Remover este repasse?')) return;
+  try {
+    await apiFetch(`/api/financeiro/deposits/${id}`, { method:'DELETE' });
+    loadFinanceiro();
+  } catch(e) { alert(e.message); }
+}
+
+// ── USUÁRIOS ───────────────────────────────────────────────────
+async function loadUsers() {
+  try {
+    const users = await apiFetch('/api/users');
+    const tbody = document.getElementById('users-tbody');
+    const roleLabel = {biomedica:'Biomédica', agendador:'Agendador', admin:'Admin'};
+    tbody.innerHTML = users.map(u => `<tr>
+      <td><strong>${u.name}</strong></td>
+      <td>${u.email}</td>
+      <td>${roleLabel[u.role]||u.role}</td>
+      <td>${u.active ? '<span class="badge badge-done">Ativo</span>' : '<span class="badge badge-cancelled">Inativo</span>'}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick='openUserModal(${JSON.stringify(u)})'>✏️ Editar</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id})">🗑️</button>
+      </td>
+    </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+function openUserModal(user=null) {
+  document.getElementById('modal-user-title').textContent = user ? 'Editar Usuário' : 'Novo Usuário';
+  document.getElementById('user-id').value    = user?.id || '';
+  document.getElementById('user-name').value  = user?.name || '';
+  document.getElementById('user-email').value = user?.email || '';
+  document.getElementById('user-pass').value  = '';
+  document.getElementById('user-role').value  = user?.role || 'biomedica';
+  document.getElementById('user-active').value= user ? String(user.active) : 'true';
+  document.getElementById('pass-hint').style.display = user ? 'inline' : 'none';
+  document.getElementById('modal-user-alert').className = 'alert';
+  openModal('modal-user');
+}
+
+async function saveUser() {
+  const id = document.getElementById('user-id').value;
+  const body = {
+    name:   document.getElementById('user-name').value.trim(),
+    email:  document.getElementById('user-email').value.trim(),
+    role:   document.getElementById('user-role').value,
+    active: document.getElementById('user-active').value === 'true',
+  };
+  const pass = document.getElementById('user-pass').value;
+  if (pass) body.password = pass;
+  if (!body.name || !body.email) { showAlert('modal-user-alert','Nome e email são obrigatórios'); return; }
+  if (!id && !pass) { showAlert('modal-user-alert','Senha é obrigatória para novo usuário'); return; }
+  try {
+    if (id) await apiFetch(`/api/users/${id}`, { method:'PUT', body: JSON.stringify(body) });
+    else    await apiFetch('/api/users',        { method:'POST',body: JSON.stringify(body) });
+    closeModal('modal-user');
+    loadUsers();
+    // refresh biomedicas list
+    if (['admin','agendador'].includes(currentUser.role)) {
+      biomedicas = await apiFetch('/api/biomedicas');
+    }
+  } catch(e) {
+    showAlert('modal-user-alert', e.message);
+  }
+}
+
+async function deleteUser(id) {
+  if (!confirm('Deletar este usuário?')) return;
+  try {
+    await apiFetch(`/api/users/${id}`, { method:'DELETE' });
+    loadUsers();
+  } catch(e) { alert(e.message); }
+}
+
+// ── PARÂMETROS ─────────────────────────────────────────────────
+async function loadParametros() {
+  try {
+    const types = await apiFetch('/api/procedure-types');
+    const tbody = document.getElementById('proc-types-tbody');
+    if (!types.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Nenhum tipo cadastrado</td></tr>';
+      return;
+    }
+    tbody.innerHTML = types.map(t => `<tr>
+      <td><strong>${t.name}</strong></td>
+      <td>${t.sort_order}</td>
+      <td>${t.active ? '<span class="badge badge-done">Ativo</span>' : '<span class="badge badge-cancelled">Inativo</span>'}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick='openProcTypeModal(${JSON.stringify(t)})'>✏️ Editar</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteProcType(${t.id})">🗑️</button>
+      </td>
+    </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+function openProcTypeModal(type=null) {
+  document.getElementById('modal-proc-type-title').textContent = type ? 'Editar Tipo' : 'Novo Tipo de Procedimento';
+  document.getElementById('proc-type-id').value     = type?.id || '';
+  document.getElementById('proc-type-name').value   = type?.name || '';
+  document.getElementById('proc-type-order').value  = type?.sort_order ?? 0;
+  document.getElementById('proc-type-active').value = type ? String(type.active) : 'true';
+  document.getElementById('modal-proc-type-alert').className = 'alert';
+  openModal('modal-proc-type');
+}
+
+async function saveProcType() {
+  const id   = document.getElementById('proc-type-id').value;
+  const name = document.getElementById('proc-type-name').value.trim();
+  const sort_order = parseInt(document.getElementById('proc-type-order').value) || 0;
+  const active = document.getElementById('proc-type-active').value === 'true';
+  if (!name) { showAlert('modal-proc-type-alert', 'Nome é obrigatório'); return; }
+  try {
+    if (id) {
+      await apiFetch(`/api/procedure-types/${id}`, { method:'PUT', body: JSON.stringify({name, sort_order, active}) });
+    } else {
+      await apiFetch('/api/procedure-types', { method:'POST', body: JSON.stringify({name, sort_order}) });
+    }
+    closeModal('modal-proc-type');
+    loadParametros();
+    // refresh types for the appointment form
+    procedureTypes = await apiFetch('/api/procedure-types?active=true');
+  } catch(e) {
+    showAlert('modal-proc-type-alert', e.message);
+  }
+}
+
+async function deleteProcType(id) {
+  if (!confirm('Remover este tipo de procedimento?')) return;
+  try {
+    await apiFetch(`/api/procedure-types/${id}`, { method:'DELETE' });
+    loadParametros();
+    procedureTypes = await apiFetch('/api/procedure-types?active=true');
+  } catch(e) { alert(e.message); }
+}
+
+// ── IMPORTAR CSV ───────────────────────────────────────────────
+function openImportModal() {
+  resetImport();
+  openModal('modal-import');
+}
+
+function closeImportModal() {
+  closeModal('modal-import');
+  loadEntries();
+  renderCalendar();
+}
+
+function resetImport() {
+  document.getElementById('import-step-upload').style.display = '';
+  document.getElementById('import-step-result').style.display = 'none';
+  document.getElementById('import-file').value = '';
+  document.getElementById('modal-import-alert').className = 'alert';
+}
+
+function downloadTemplate() {
+  const types = procedureTypes.length ? procedureTypes[0].name : 'Coleta';
+  const bioEx = biomedicas.length ? biomedicas[0].name : 'Nome da Biomédica';
+  const header = 'data,hora,biomedica,tipo,paciente,endereco,valor,motorista,observacao';
+  const ex1 = `01/07/2026,09:00,${bioEx},${types},João da Silva,"Rua A, 123",25.50,,`;
+  const ex2 = `01/07/2026,10:30,${bioEx},${types},Maria Santos,"Rua B, 456",30.00,Pedro,observação aqui`;
+  const csv = [header, ex1, ex2].join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'modelo_agendamentos.csv';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+async function runImport() {
+  const file = document.getElementById('import-file').files[0];
+  if (!file) { showAlert('modal-import-alert', 'Selecione um arquivo CSV'); return; }
+
+  const btn = document.querySelector('#import-step-upload .btn-primary');
+  btn.textContent = 'Processando...'; btn.disabled = true;
+
+  const fd = new FormData();
+  fd.append('csv', file);
+
+  try {
+    const res = await fetch('/api/entries/import', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+      body: fd
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro na importação');
+
+    document.getElementById('import-step-upload').style.display = 'none';
+    document.getElementById('import-step-result').style.display = '';
+
+    const pct = data.total > 0 ? Math.round(data.success / data.total * 100) : 0;
+    document.getElementById('import-result-summary').innerHTML = `
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+        <div class="kpi" style="flex:1;min-width:120px;padding:12px 16px">
+          <div class="kpi-label">Importados</div>
+          <div class="kpi-value" style="font-size:24px;color:var(--green)">${data.success}</div>
+        </div>
+        <div class="kpi" style="flex:1;min-width:120px;padding:12px 16px">
+          <div class="kpi-label">Erros</div>
+          <div class="kpi-value" style="font-size:24px;color:${data.errors.length?'var(--red)':'var(--green)'}">${data.errors.length}</div>
+        </div>
+        <div class="kpi" style="flex:1;min-width:120px;padding:12px 16px">
+          <div class="kpi-label">Total</div>
+          <div class="kpi-value" style="font-size:24px;color:var(--primary)">${data.total}</div>
+        </div>
+      </div>
+      ${data.success > 0 ? `<div class="alert success" style="display:block">✅ ${data.success} agendamento(s) criado(s) com sucesso!</div>` : ''}
+    `;
+
+    if (data.errors.length) {
+      document.getElementById('import-result-errors').innerHTML = `
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--red)">Linhas com erro:</div>
+        <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          ${data.errors.map(e => `
+            <div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px;display:flex;gap:8px">
+              <span style="background:var(--red-bg);color:var(--red);border-radius:4px;padding:2px 6px;font-weight:600;flex-shrink:0">Linha ${e.row}</span>
+              <span style="color:var(--text)">${e.message}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } else {
+      document.getElementById('import-result-errors').innerHTML = '';
+    }
+  } catch(e) {
+    showAlert('modal-import-alert', e.message);
+  } finally {
+    btn.textContent = 'Importar'; btn.disabled = false;
+  }
+}
+
+// ── INIT ───────────────────────────────────────────────────────
+bootApp();
+</script>
+</body>
+</html>
