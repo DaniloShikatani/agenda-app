@@ -7,6 +7,7 @@ const bcrypt  = require('bcrypt');
 const jwt     = require('jsonwebtoken');
 const multer  = require('multer');
 const fs      = require('fs');
+const { sendDailyAgendaEmail } = require('./mailer');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -668,6 +669,63 @@ app.post('/api/patients', auth, requireRole('admin', 'agendador'), async (req, r
     console.error(err);
     return res.status(500).json({ error: 'Erro ao criar paciente' });
   }
+});
+
+// ── FECHAMENTO DIÁRIO DA AGENDA ─────────────────────────────────
+app.get('/api/daily-agenda/:date', auth, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT da.*, u.name AS closed_by_name FROM daily_agenda da
+     LEFT JOIN users u ON u.id = da.closed_by WHERE da.date = $1`,
+    [req.params.date]
+  );
+  return res.json(rows[0] || { date: req.params.date, lunch_time: null, closed_at: null, closed_by: null });
+});
+
+app.put('/api/daily-agenda/:date/lunch', auth, requireRole('admin', 'agendador'), async (req, res) => {
+  const { lunch_time } = req.body;
+  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(lunch_time || '')) return res.status(400).json({ error: 'Horário inválido' });
+  const { rows: existing } = await pool.query('SELECT closed_at FROM daily_agenda WHERE date=$1', [req.params.date]);
+  if (existing[0]?.closed_at) return res.status(400).json({ error: 'Dia já encerrado' });
+  const { rows } = await pool.query(
+    `INSERT INTO daily_agenda (date, lunch_time) VALUES ($1,$2)
+     ON CONFLICT (date) DO UPDATE SET lunch_time = EXCLUDED.lunch_time RETURNING *`,
+    [req.params.date, lunch_time]
+  );
+  return res.json(rows[0]);
+});
+
+app.post('/api/daily-agenda/:date/close', auth, requireRole('admin', 'agendador'), async (req, res) => {
+  const date = req.params.date;
+  const { rows: existing } = await pool.query('SELECT * FROM daily_agenda WHERE date=$1', [date]);
+  if (!existing.length || !existing[0].lunch_time) return res.status(400).json({ error: 'Defina o horário de almoço antes de encerrar o dia' });
+  if (existing[0].closed_at) return res.status(400).json({ error: 'Dia já encerrado' });
+
+  const { rows: pending } = await pool.query(
+    "SELECT COUNT(*)::int AS n FROM entries WHERE date=$1 AND confirmation_status='pendente'", [date]
+  );
+  if (pending[0].n > 0) return res.status(400).json({ error: `Existem ${pending[0].n} agendamento(s) pendente(s) de confirmação`, pending_count: pending[0].n });
+
+  const { rows: closedRows } = await pool.query(
+    `UPDATE daily_agenda SET closed_at=now(), closed_by=$1 WHERE date=$2 RETURNING *`,
+    [req.user.id, date]
+  );
+
+  const { rows: dayEntries } = await pool.query(
+    `SELECT e.*, b.name AS biomedica_name, b.email AS biomedica_email, p.nome AS plan_nome
+     FROM entries e JOIN users b ON b.id=e.biomedica_id LEFT JOIN plans p ON p.id=e.plan_id
+     WHERE e.date=$1 ORDER BY e.time`,
+    [date]
+  );
+  const { rows: staffUsers } = await pool.query("SELECT email FROM users WHERE role IN ('admin','agendador') AND active=true");
+  const recipients = [...new Set([...dayEntries.map(r => r.biomedica_email), ...staffUsers.map(r => r.email)])];
+
+  let emailResult = { sent: false };
+  try {
+    emailResult = await sendDailyAgendaEmail({ to: recipients, date, rows: dayEntries });
+  } catch (err) {
+    console.error('[daily-agenda close] email falhou (não bloqueia o fechamento):', err.message);
+  }
+  return res.json({ ...closedRows[0], email: emailResult });
 });
 
 // ── HEALTH ─────────────────────────────────────────────────────

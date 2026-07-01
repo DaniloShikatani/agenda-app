@@ -446,6 +446,33 @@ tr:hover td { background:var(--bg); }
       </div>
     </div>
 
+    <!-- PÁGINA: FECHAMENTO DIÁRIO -->
+    <div class="page" id="page-fechamento">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Fechamento do Dia</div>
+          <div class="page-subtitle">Defina o horário de almoço e conclua a agenda diária</div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px;padding:16px;max-width:520px">
+        <div class="form-group">
+          <label class="form-label">Dia</label>
+          <input class="form-input" type="date" id="fech-date" onchange="loadFechamento()"/>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Horário de almoço</label>
+            <input class="form-input" type="time" id="fech-lunch"/>
+          </div>
+          <div class="form-group" style="display:flex;align-items:flex-end">
+            <button class="btn btn-ghost" onclick="saveLunchTime()">Salvar horário de almoço</button>
+          </div>
+        </div>
+        <div id="fech-status" style="font-size:13px;margin:12px 0;color:var(--muted)"></div>
+        <button class="btn btn-primary" id="btn-concluir-dia" onclick="closeDailyAgenda()">Concluir agenda do dia</button>
+      </div>
+    </div>
+
     <!-- PÁGINA: ADMIN PLANOS -->
     <div class="page" id="page-planos">
       <div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
@@ -969,10 +996,12 @@ function buildNav() {
   } else if (currentUser.role === 'agendador') {
     items.push({ id:'agendamentos', icon:'📋', label:'Agendamentos'  });
     items.push({ id:'calendario',   icon:'📅', label:'Calendário'    });
+    items.push({ id:'fechamento',   icon:'🔒', label:'Fechamento do Dia' });
   } else { // admin
     items.push({ id:'agendamentos', icon:'📋', label:'Agendamentos'  });
     items.push({ id:'calendario',   icon:'📅', label:'Calendário'    });
     items.push({ id:'financeiro',   icon:'💰', label:'Financeiro'    });
+    items.push({ id:'fechamento',   icon:'🔒', label:'Fechamento do Dia' });
     items.push({ id:'usuarios',     icon:'👥', label:'Usuários'      });
     items.push({ id:'planos',       icon:'🩺', label:'Planos'        });
     items.push({ id:'parametros',   icon:'⚙️', label:'Parâmetros'    });
@@ -1000,6 +1029,7 @@ function navigate(page) {
   if (page === 'usuarios') loadUsers();
   if (page === 'planos') loadPlanos();
   if (page === 'parametros') loadParametros();
+  if (page === 'fechamento') loadFechamento();
 
   if (window.innerWidth <= 768) {
     document.getElementById('sidebar').classList.remove('open');
@@ -2084,6 +2114,56 @@ async function savePlanTreatments() {
   } catch(e) {
     showAlert('modal-plan-treatments-alert', e.message);
   }
+}
+
+// ── FECHAMENTO DIÁRIO ────────────────────────────────────────────
+async function loadFechamento() {
+  const dateEl = document.getElementById('fech-date');
+  if (!dateEl.value) dateEl.value = today();
+  const date = dateEl.value;
+  const statusEl = document.getElementById('fech-status');
+  const btn = document.getElementById('btn-concluir-dia');
+  statusEl.textContent = 'Carregando...';
+  try {
+    const [da, entries] = await Promise.all([
+      apiFetch(`/api/daily-agenda/${date}`),
+      apiFetch(`/api/entries?start=${date}&end=${date}`),
+    ]);
+    document.getElementById('fech-lunch').value = da.lunch_time ? da.lunch_time.slice(0,5) : '';
+    const pending = entries.filter(e => e.confirmation_status === 'pendente').length;
+    if (da.closed_at) {
+      statusEl.innerHTML = `<strong style="color:var(--green)">Agenda encerrada</strong> em ${new Date(da.closed_at).toLocaleString('pt-BR')} por ${da.closed_by_name || '—'}`;
+      btn.disabled = true;
+      btn.textContent = 'Agenda já encerrada';
+    } else {
+      statusEl.textContent = pending > 0
+        ? `${pending} agendamento(s) ainda pendente(s) de confirmação — confirme ou cancele todos antes de encerrar o dia.`
+        : `Todos os ${entries.length} agendamento(s) do dia já foram confirmados ou cancelados.`;
+      btn.disabled = false;
+      btn.textContent = 'Concluir agenda do dia';
+    }
+  } catch(e) {
+    statusEl.textContent = 'Erro ao carregar: ' + e.message;
+  }
+}
+
+async function saveLunchTime() {
+  const date = document.getElementById('fech-date').value;
+  const lunch_time = document.getElementById('fech-lunch').value;
+  if (!lunch_time) { alert('Informe o horário de almoço'); return; }
+  try {
+    await apiFetch(`/api/daily-agenda/${date}/lunch`, { method:'PUT', body: JSON.stringify({ lunch_time }) });
+    loadFechamento();
+  } catch(e) { alert(e.message); }
+}
+
+async function closeDailyAgenda() {
+  const date = document.getElementById('fech-date').value;
+  if (!confirm(`Concluir a agenda do dia ${fmtDate(date)}? Isso vai enviar a agenda final por e-mail e não pode ser desfeito.`)) return;
+  try {
+    await apiFetch(`/api/daily-agenda/${date}/close`, { method:'POST' });
+    loadFechamento();
+  } catch(e) { alert(e.message); }
 }
 
 // ── IMPORTAR CSV ───────────────────────────────────────────────
