@@ -344,9 +344,12 @@ tr:hover td { background:var(--bg); }
             <label class="form-label" style="margin-bottom:4px">Paciente</label>
             <input type="text" class="form-input" id="f-patient" style="width:160px" placeholder="Buscar paciente..." oninput="loadEntries()"/>
           </div>
-          <div>
+          <div style="position:relative">
             <label class="form-label" style="margin-bottom:4px">Plano</label>
-            <input type="text" class="form-input" id="f-plano" style="width:140px" placeholder="Buscar plano..." oninput="loadEntries()"/>
+            <button type="button" class="btn btn-ghost" id="plan-filter-btn" style="width:160px;justify-content:space-between;display:flex" onclick="togglePlanFilterPopover()">
+              <span id="plan-filter-label">Todos</span> <span>▾</span>
+            </button>
+            <div id="plan-filter-popover" style="display:none;position:absolute;z-index:20;background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:4px;min-width:220px;max-height:240px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.12)"></div>
           </div>
           <div id="f-biomedica-wrap" style="display:none">
             <label class="form-label" style="margin-bottom:4px">Biomédica</label>
@@ -440,6 +443,31 @@ tr:hover td { background:var(--bg); }
       </div>
     </div>
 
+    <!-- PÁGINA: ADMIN PLANOS -->
+    <div class="page" id="page-planos">
+      <div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div class="page-title">Planos</div>
+          <div class="page-subtitle">Configure os planos de tratamento disponíveis</div>
+        </div>
+        <button class="btn btn-primary" onclick="openPlanModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Novo Plano
+        </button>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <div class="card-title">Planos de Tratamento</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Nome</th><th>Sessões</th><th>Ordem</th><th>Status</th><th>Ações</th></tr>
+            </thead>
+            <tbody id="plans-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- PÁGINA: ADMIN USUÁRIOS -->
     <div class="page" id="page-usuarios">
       <div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
@@ -509,7 +537,9 @@ tr:hover td { background:var(--bg); }
     <div class="form-row-3">
       <div class="form-group">
         <label class="form-label">Plano</label>
-        <input class="form-input" type="text" id="entry-plano" placeholder="Ex: Pacote Bronze"/>
+        <select class="form-select" id="entry-plan-id" onchange="onPlanChange()">
+          <option value="">Selecione...</option>
+        </select>
       </div>
       <div class="form-group">
         <label class="form-label">Sessão nº</label>
@@ -676,6 +706,43 @@ tr:hover td { background:var(--bg); }
   </div>
 </div>
 
+<!-- MODAL: PLANO -->
+<div class="modal-overlay" id="modal-plan">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-plan-title">Novo Plano</span>
+      <button class="modal-close" onclick="closeModal('modal-plan')">×</button>
+    </div>
+    <div id="modal-plan-alert"></div>
+    <input type="hidden" id="plan-id"/>
+    <div class="form-group">
+      <label class="form-label">Nome do plano *</label>
+      <input class="form-input" type="text" id="plan-nome" placeholder="Ex: Plano de lavagem capilar"/>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Total de sessões</label>
+        <input class="form-input" type="number" id="plan-total-sessoes" min="1" value="1" placeholder="1"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Ordem de exibição</label>
+        <input class="form-input" type="number" id="plan-sort-order" min="0" value="0" placeholder="0"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Status</label>
+      <select class="form-select" id="plan-ativo">
+        <option value="true">Ativo</option>
+        <option value="false">Inativo</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-plan')">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePlan()">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: TIPO DE PROCEDIMENTO -->
 <div class="modal-overlay" id="modal-proc-type">
   <div class="modal" style="max-width:420px">
@@ -760,6 +827,8 @@ let token = localStorage.getItem('agenda_token');
 let currentUser = null;
 let biomedicas = [];
 let procedureTypes = [];
+let plans = [];
+let selectedPlanIds = new Set();
 let calYear, calMonth;
 let allEntries = [];
 
@@ -842,6 +911,7 @@ async function bootApp() {
   }
   // load procedure types for appointment form
   procedureTypes = await apiFetch('/api/procedure-types?active=true');
+  plans = await apiFetch('/api/plans?active=true');
 
   const startPage = currentUser.role === 'biomedica' ? 'calendario' : 'agendamentos';
   navigate(startPage);
@@ -863,6 +933,7 @@ function buildNav() {
     items.push({ id:'calendario',   icon:'📅', label:'Calendário'    });
     items.push({ id:'financeiro',   icon:'💰', label:'Financeiro'    });
     items.push({ id:'usuarios',     icon:'👥', label:'Usuários'      });
+    items.push({ id:'planos',       icon:'🩺', label:'Planos'        });
     items.push({ id:'parametros',   icon:'⚙️', label:'Parâmetros'    });
   }
 
@@ -886,6 +957,7 @@ function navigate(page) {
   if (page === 'agendamentos') loadEntries();
   if (page === 'financeiro') loadFinanceiro();
   if (page === 'usuarios') loadUsers();
+  if (page === 'planos') loadPlanos();
   if (page === 'parametros') loadParametros();
 
   if (window.innerWidth <= 768) {
@@ -1063,14 +1135,13 @@ async function loadEntries() {
   const end     = document.getElementById('f-end').value;
   const bid     = document.getElementById('f-biomedica').value;
   const patient = document.getElementById('f-patient').value.trim();
-  const plano   = document.getElementById('f-plano').value.trim();
 
   let url = '/api/entries?';
   if (start)   url += `start=${encodeURIComponent(start)}&`;
   if (end)     url += `end=${encodeURIComponent(end)}&`;
   if (bid)     url += `biomedica_id=${bid}&`;
   if (patient) url += `patient=${encodeURIComponent(patient)}&`;
-  if (plano)   url += `plano=${encodeURIComponent(plano)}&`;
+  if (selectedPlanIds.size) url += `plan_ids=${[...selectedPlanIds].join(',')}&`;
 
   try {
     allEntries = await apiFetch(url);
@@ -1098,14 +1169,15 @@ function renderEntriesTable(entries) {
     const canDelete   = ['admin','agendador'].includes(currentUser.role) && isPendente;
     const canComplete = currentUser.role !== 'agendador' && isPendente;
     const canStatus   = ['admin','agendador'].includes(currentUser.role);
-    const sessaoInfo  = e.plano || e.sessao
-      ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${e.plano||''}${e.sessao ? ` · Sessão ${e.sessao}${e.total_sessoes ? '/' + e.total_sessoes : ''}` : ''}</div>`
+    const planoNome   = e.plan_nome || e.plano;
+    const sessaoInfo  = planoNome || e.sessao
+      ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${planoNome||''}${e.sessao ? ` · Sessão ${e.sessao}${e.total_sessoes ? '/' + e.total_sessoes : ''}` : ''}</div>`
       : '';
     return `<tr>
       <td><strong>${fmtDate(e.date?.slice?.(0,10))}</strong><br><span style="color:var(--muted);font-size:12px">${fmtTime(e.time)}</span></td>
       <td>${e.patient}${sessaoInfo}</td>
       ${showBio ? `<td>${e.biomedica_name}</td>` : ''}
-      <td>${e.plano ? `<span style="font-size:12px">${e.plano}</span><br>` : ''}<span style="font-size:12px;color:var(--muted)">${e.sessao ? `Sessão ${e.sessao}${e.total_sessoes?'/'+e.total_sessoes:''} · ` : ''}${e.type||'Coleta'}</span></td>
+      <td>${planoNome ? `<span style="font-size:12px">${planoNome}</span><br>` : ''}<span style="font-size:12px;color:var(--muted)">${e.sessao ? `Sessão ${e.sessao}${e.total_sessoes?'/'+e.total_sessoes:''} · ` : ''}${e.type||'Coleta'}</span></td>
       <td>${confirmationBadge(e.confirmation_status)}</td>
       <td>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
@@ -1154,13 +1226,62 @@ async function setConfirmation(id, confirmation_status) {
 function clearFilters() {
   document.getElementById('f-biomedica').value = '';
   document.getElementById('f-patient').value  = '';
-  document.getElementById('f-plano').value    = '';
+  selectedPlanIds.clear();
+  renderPlanFilterPopover();
+  updatePlanFilterLabel();
   const now = new Date();
   const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
   document.getElementById('f-start').value = `${y}-${m}-01`;
   document.getElementById('f-end').value   = `${y}-${m}-${new Date(y,now.getMonth()+1,0).getDate()}`;
   loadEntries();
 }
+
+// ── FILTRO DE PLANO (multi-select) ──────────────────────────────
+function togglePlanFilterPopover() {
+  const pop = document.getElementById('plan-filter-popover');
+  const opening = pop.style.display === 'none';
+  if (opening) renderPlanFilterPopover();
+  pop.style.display = opening ? 'block' : 'none';
+}
+
+function renderPlanFilterPopover() {
+  const pop = document.getElementById('plan-filter-popover');
+  if (!plans.length) {
+    pop.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:4px">Nenhum plano cadastrado</div>';
+    return;
+  }
+  pop.innerHTML = plans.map(p => `
+    <label style="display:flex;align-items:center;gap:6px;padding:4px 2px;font-size:13px;cursor:pointer">
+      <input type="checkbox" value="${p.id}" ${selectedPlanIds.has(String(p.id))?'checked':''} onchange="onPlanFilterToggle(${p.id}, this.checked)"/>
+      ${p.nome}
+    </label>`).join('');
+}
+
+function onPlanFilterToggle(id, checked) {
+  if (checked) selectedPlanIds.add(String(id));
+  else selectedPlanIds.delete(String(id));
+  updatePlanFilterLabel();
+  loadEntries();
+}
+
+function updatePlanFilterLabel() {
+  const label = document.getElementById('plan-filter-label');
+  if (!selectedPlanIds.size) { label.textContent = 'Todos'; return; }
+  if (selectedPlanIds.size === 1) {
+    const p = plans.find(pl => String(pl.id) === [...selectedPlanIds][0]);
+    label.textContent = p ? p.nome : '1 selecionado';
+  } else {
+    label.textContent = `${selectedPlanIds.size} selecionados`;
+  }
+}
+
+document.addEventListener('click', (ev) => {
+  const pop = document.getElementById('plan-filter-popover');
+  const btn = document.getElementById('plan-filter-btn');
+  if (pop && pop.style.display === 'block' && !pop.contains(ev.target) && ev.target !== btn) {
+    pop.style.display = 'none';
+  }
+});
 
 // ── MODAL ENTRY ────────────────────────────────────────────────
 function openEntryModal(entry=null) {
@@ -1174,7 +1295,6 @@ function openEntryModal(entry=null) {
   document.getElementById('entry-value').value       = entry?.value || '';
   document.getElementById('entry-driver').value      = entry?.driver || '';
   document.getElementById('entry-note').value        = entry?.note || '';
-  document.getElementById('entry-plano').value       = entry?.plano || '';
   document.getElementById('entry-sessao').value      = entry?.sessao || '';
   document.getElementById('entry-total-sessoes').value = entry?.total_sessoes || '';
   document.getElementById('modal-entry-alert').className = 'alert';
@@ -1206,8 +1326,22 @@ function openEntryModal(entry=null) {
     typeEl.innerHTML += `<option value="${entry.type}" selected>${entry.type}</option>`;
   }
 
+  // populate planos
+  const planEl = document.getElementById('entry-plan-id');
+  planEl.innerHTML = '<option value="">Selecione...</option>' +
+    plans.map(p => `<option value="${p.id}" ${entry?.plan_id==p.id?'selected':''}>${p.nome}</option>`).join('');
+
   document.getElementById('btn-save-entry').textContent = 'Salvar';
   openModal('modal-entry');
+}
+
+function onPlanChange() {
+  const planId = document.getElementById('entry-plan-id').value;
+  const plan = plans.find(p => String(p.id) === String(planId));
+  if (plan) {
+    document.getElementById('entry-total-sessoes').value = plan.total_sessoes;
+    onTotalSessoesChange();
+  }
 }
 
 function onTotalSessoesChange() {
@@ -1277,7 +1411,7 @@ async function saveEntry() {
     value:         document.getElementById('entry-value').value || 0,
     driver:        document.getElementById('entry-driver').value.trim(),
     note:          document.getElementById('entry-note').value.trim(),
-    plano:         document.getElementById('entry-plano').value.trim(),
+    plan_id:       document.getElementById('entry-plan-id').value || null,
     sessao:        document.getElementById('entry-sessao').value || null,
     total_sessoes: document.getElementById('entry-total-sessoes').value || null,
   };
@@ -1310,7 +1444,7 @@ async function saveBulkEntries() {
     value:         document.getElementById('entry-value').value || 0,
     driver:        document.getElementById('entry-driver').value.trim(),
     note:          document.getElementById('entry-note').value.trim(),
-    plano:         document.getElementById('entry-plano').value.trim(),
+    plan_id:       document.getElementById('entry-plan-id').value || null,
     total_sessoes: total,
   };
   if (!base.biomedica_id || !base.patient) {
@@ -1697,6 +1831,69 @@ async function deleteProcType(id) {
     await apiFetch(`/api/procedure-types/${id}`, { method:'DELETE' });
     loadParametros();
     procedureTypes = await apiFetch('/api/procedure-types?active=true');
+  } catch(e) { alert(e.message); }
+}
+
+// ── PLANOS ─────────────────────────────────────────────────────
+async function loadPlanos() {
+  try {
+    const list = await apiFetch('/api/plans');
+    const tbody = document.getElementById('plans-tbody');
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">Nenhum plano cadastrado</td></tr>';
+      return;
+    }
+    tbody.innerHTML = list.map(p => `<tr>
+      <td><strong>${p.nome}</strong></td>
+      <td>${p.total_sessoes}</td>
+      <td>${p.sort_order}</td>
+      <td>${p.ativo ? '<span class="badge badge-done">Ativo</span>' : '<span class="badge badge-cancelled">Inativo</span>'}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick='openPlanModal(${JSON.stringify(p)})'>✏️ Editar</button>
+        <button class="btn btn-danger btn-sm" onclick="deletePlan(${p.id})">🗑️</button>
+      </td>
+    </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+function openPlanModal(plan=null) {
+  document.getElementById('modal-plan-title').textContent = plan ? 'Editar Plano' : 'Novo Plano';
+  document.getElementById('plan-id').value             = plan?.id || '';
+  document.getElementById('plan-nome').value           = plan?.nome || '';
+  document.getElementById('plan-total-sessoes').value  = plan?.total_sessoes ?? 1;
+  document.getElementById('plan-sort-order').value     = plan?.sort_order ?? 0;
+  document.getElementById('plan-ativo').value          = plan ? String(plan.ativo) : 'true';
+  document.getElementById('modal-plan-alert').className = 'alert';
+  openModal('modal-plan');
+}
+
+async function savePlan() {
+  const id = document.getElementById('plan-id').value;
+  const nome = document.getElementById('plan-nome').value.trim();
+  const total_sessoes = parseInt(document.getElementById('plan-total-sessoes').value) || 1;
+  const sort_order = parseInt(document.getElementById('plan-sort-order').value) || 0;
+  const ativo = document.getElementById('plan-ativo').value === 'true';
+  if (!nome) { showAlert('modal-plan-alert', 'Nome é obrigatório'); return; }
+  try {
+    if (id) {
+      await apiFetch(`/api/plans/${id}`, { method:'PUT', body: JSON.stringify({nome, total_sessoes, ativo, sort_order}) });
+    } else {
+      await apiFetch('/api/plans', { method:'POST', body: JSON.stringify({nome, total_sessoes, sort_order}) });
+    }
+    closeModal('modal-plan');
+    loadPlanos();
+    plans = await apiFetch('/api/plans?active=true');
+  } catch(e) {
+    showAlert('modal-plan-alert', e.message);
+  }
+}
+
+async function deletePlan(id) {
+  if (!confirm('Remover este plano?')) return;
+  try {
+    await apiFetch(`/api/plans/${id}`, { method:'DELETE' });
+    loadPlanos();
+    plans = await apiFetch('/api/plans?active=true');
   } catch(e) { alert(e.message); }
 }
 

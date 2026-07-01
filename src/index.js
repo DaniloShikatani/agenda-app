@@ -150,7 +150,7 @@ app.get('/api/biomedicas', auth, requireRole('admin', 'agendador'), async (req, 
 
 // ── ENTRIES ────────────────────────────────────────────────────
 app.get('/api/entries', auth, async (req, res) => {
-  const { start, end, biomedica_id, status, patient, plano } = req.query;
+  const { start, end, biomedica_id, status, patient, plano, plan_ids } = req.query;
   const vals = []; let i = 1;
   let where = '1=1';
 
@@ -166,12 +166,17 @@ app.get('/api/entries', auth, async (req, res) => {
   if (status)  { where += ` AND e.status = $${i++}`;         vals.push(status); }
   if (patient) { where += ` AND e.patient ILIKE $${i++}`;    vals.push('%' + patient + '%'); }
   if (plano)   { where += ` AND e.plano ILIKE $${i++}`;      vals.push('%' + plano + '%'); }
+  if (plan_ids) {
+    const ids = String(plan_ids).split(',').map(Number).filter(Boolean);
+    if (ids.length) { where += ` AND e.plan_id = ANY($${i++}::int[])`; vals.push(ids); }
+  }
 
   const { rows } = await pool.query(
-    `SELECT e.*, b.name AS biomedica_name, c.name AS created_by_name
+    `SELECT e.*, b.name AS biomedica_name, c.name AS created_by_name, p.nome AS plan_nome
      FROM entries e
      JOIN users b ON b.id = e.biomedica_id
      JOIN users c ON c.id = e.created_by
+     LEFT JOIN plans p ON p.id = e.plan_id
      WHERE ${where}
      ORDER BY e.date, e.time`,
     vals
@@ -179,15 +184,22 @@ app.get('/api/entries', auth, async (req, res) => {
   return res.json(rows);
 });
 
+async function resolvePlanoText(queryable, plan_id, planoFallback) {
+  if (!plan_id) return planoFallback || null;
+  const { rows } = await queryable.query('SELECT nome FROM plans WHERE id=$1', [plan_id]);
+  return rows.length ? rows[0].nome : (planoFallback || null);
+}
+
 app.post('/api/entries', auth, requireRole('admin', 'agendador'), async (req, res) => {
-  const { biomedica_id, date, time, type, patient, address, value, driver, note, plano, sessao, total_sessoes } = req.body;
+  const { biomedica_id, date, time, type, patient, address, value, driver, note, plano, plan_id, sessao, total_sessoes } = req.body;
   if (!biomedica_id || !date || !time || !patient) return res.status(400).json({ error: 'Biomedica, data, hora e paciente são obrigatórios' });
   try {
+    const planoText = await resolvePlanoText(pool, plan_id, plano);
     const { rows } = await pool.query(
-      `INSERT INTO entries (biomedica_id, date, time, type, patient, address, value, driver, note, created_by, status, plano, sessao, total_sessoes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pendente',$11,$12,$13) RETURNING *`,
+      `INSERT INTO entries (biomedica_id, date, time, type, patient, address, value, driver, note, created_by, status, plano, plan_id, sessao, total_sessoes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pendente',$11,$12,$13,$14) RETURNING *`,
       [biomedica_id, date, time, type || 'Coleta', patient, address, value || 0, driver, note, req.user.id,
-       plano || null, sessao || null, total_sessoes || null]
+       planoText, plan_id || null, sessao || null, total_sessoes || null]
     );
     return res.status(201).json(rows[0]);
   } catch (err) {
@@ -204,12 +216,13 @@ app.post('/api/entries/bulk', auth, requireRole('admin', 'agendador'), async (re
     await client.query('BEGIN');
     const created = [];
     for (const e of entries) {
-      const { biomedica_id, date, time, type, patient, address, value, driver, note, plano, sessao, total_sessoes } = e;
+      const { biomedica_id, date, time, type, patient, address, value, driver, note, plano, plan_id, sessao, total_sessoes } = e;
+      const planoText = await resolvePlanoText(client, plan_id, plano);
       const { rows } = await client.query(
-        `INSERT INTO entries (biomedica_id, date, time, type, patient, address, value, driver, note, created_by, status, plano, sessao, total_sessoes)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pendente',$11,$12,$13) RETURNING *`,
+        `INSERT INTO entries (biomedica_id, date, time, type, patient, address, value, driver, note, created_by, status, plano, plan_id, sessao, total_sessoes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pendente',$11,$12,$13,$14) RETURNING *`,
         [biomedica_id, date, time, type || 'Coleta', patient, address, value || 0, driver, note, req.user.id,
-         plano || null, sessao || null, total_sessoes || null]
+         planoText, plan_id || null, sessao || null, total_sessoes || null]
       );
       created.push(rows[0]);
     }
@@ -225,14 +238,15 @@ app.post('/api/entries/bulk', auth, requireRole('admin', 'agendador'), async (re
 });
 
 app.put('/api/entries/:id', auth, requireRole('admin', 'agendador'), async (req, res) => {
-  const { biomedica_id, date, time, type, patient, address, value, driver, note, plano, sessao, total_sessoes } = req.body;
+  const { biomedica_id, date, time, type, patient, address, value, driver, note, plano, plan_id, sessao, total_sessoes } = req.body;
   try {
+    const planoText = await resolvePlanoText(pool, plan_id, plano);
     const { rows } = await pool.query(
       `UPDATE entries SET biomedica_id=$1, date=$2, time=$3, type=$4, patient=$5, address=$6, value=$7, driver=$8, note=$9,
-       plano=$10, sessao=$11, total_sessoes=$12, updated_at=now()
-       WHERE id=$13 AND status='pendente' RETURNING *`,
+       plano=$10, plan_id=$11, sessao=$12, total_sessoes=$13, updated_at=now()
+       WHERE id=$14 AND status='pendente' RETURNING *`,
       [biomedica_id, date, time, type, patient, address, value, driver, note,
-       plano || null, sessao || null, total_sessoes || null, req.params.id]
+       planoText, plan_id || null, sessao || null, total_sessoes || null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Agendamento não encontrado ou já concluído' });
     return res.json(rows[0]);
@@ -518,6 +532,56 @@ app.put('/api/procedure-types/:id', auth, requireRole('admin'), async (req, res)
 app.delete('/api/procedure-types/:id', auth, requireRole('admin'), async (req, res) => {
   await pool.query('DELETE FROM procedure_types WHERE id=$1', [req.params.id]);
   return res.json({ success: true });
+});
+
+// ── PLANOS ─────────────────────────────────────────────────────
+app.get('/api/plans', auth, async (req, res) => {
+  const onlyActive = req.query.active === 'true';
+  const where = onlyActive ? 'WHERE ativo = true' : '';
+  const { rows } = await pool.query(`SELECT * FROM plans ${where} ORDER BY sort_order, nome`);
+  return res.json(rows);
+});
+
+app.post('/api/plans', auth, requireRole('admin'), async (req, res) => {
+  const { nome, total_sessoes, sort_order } = req.body;
+  if (!nome?.trim()) return res.status(400).json({ error: 'Nome é obrigatório' });
+  try {
+    const { rows } = await pool.query(
+      'INSERT INTO plans (nome, total_sessoes, sort_order) VALUES ($1,$2,$3) RETURNING *',
+      [nome.trim(), total_sessoes || 1, sort_order || 0]
+    );
+    return res.status(201).json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'Plano já cadastrado' });
+    console.error(err);
+    return res.status(500).json({ error: 'Erro ao criar plano' });
+  }
+});
+
+app.put('/api/plans/:id', auth, requireRole('admin'), async (req, res) => {
+  const { nome, total_sessoes, ativo, sort_order } = req.body;
+  try {
+    const { rows } = await pool.query(
+      'UPDATE plans SET nome=$1, total_sessoes=$2, ativo=$3, sort_order=$4 WHERE id=$5 RETURNING *',
+      [nome, total_sessoes, ativo, sort_order ?? 0, req.params.id]
+    );
+    return res.json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'Nome já existe' });
+    console.error(err);
+    return res.status(500).json({ error: 'Erro ao atualizar plano' });
+  }
+});
+
+app.delete('/api/plans/:id', auth, requireRole('admin'), async (req, res) => {
+  try {
+    await pool.query('DELETE FROM plans WHERE id=$1', [req.params.id]);
+    return res.json({ success: true });
+  } catch (err) {
+    if (err.code === '23503') return res.status(400).json({ error: 'Plano em uso em agendamentos — desative-o em vez de excluir' });
+    console.error(err);
+    return res.status(500).json({ error: 'Erro ao excluir plano' });
+  }
 });
 
 // ── HEALTH ─────────────────────────────────────────────────────
