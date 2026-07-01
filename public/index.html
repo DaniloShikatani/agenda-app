@@ -329,6 +329,14 @@ tr:hover td { background:var(--bg); }
         </div>
       </div>
 
+      <!-- Filtro rápido de biomédica -->
+      <div style="margin-bottom:12px">
+        <select class="form-select" id="quick-bio-filter" style="width:220px" onchange="loadEntries()">
+          <option value="me">Minha agenda</option>
+          <option value="">Todas as agendas</option>
+        </select>
+      </div>
+
       <!-- Filtros -->
       <div class="card" style="margin-bottom:16px;padding:16px">
         <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
@@ -350,12 +358,6 @@ tr:hover td { background:var(--bg); }
               <span id="plan-filter-label">Todos</span> <span>▾</span>
             </button>
             <div id="plan-filter-popover" style="display:none;position:absolute;z-index:20;background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:4px;min-width:220px;max-height:240px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.12)"></div>
-          </div>
-          <div id="f-biomedica-wrap" style="display:none">
-            <label class="form-label" style="margin-bottom:4px">Biomédica</label>
-            <select class="form-select" id="f-biomedica" style="width:160px" onchange="loadEntries()">
-              <option value="">Todas</option>
-            </select>
           </div>
           <button class="btn btn-ghost btn-sm" onclick="clearFilters()">Limpar</button>
         </div>
@@ -948,9 +950,7 @@ async function bootApp() {
 
   buildNav();
 
-  if (['admin','agendador'].includes(currentUser.role)) {
-    biomedicas = await apiFetch('/api/biomedicas');
-  }
+  biomedicas = await apiFetch('/api/biomedicas');
   // load procedure types for appointment form
   procedureTypes = await apiFetch('/api/procedure-types?active=true');
   plans = await apiFetch('/api/plans?active=true');
@@ -1044,7 +1044,7 @@ async function renderCalendar() {
 
   const start = first.toISOString().slice(0,10);
   const end   = last.toISOString().slice(0,10);
-  const bid   = document.getElementById('cal-sel-biomedica')?.value || '';
+  const bid   = document.getElementById('cal-sel-biomedica')?.value || (currentUser.role === 'biomedica' ? currentUser.id : '');
 
   let url = `/api/entries?start=${start}&end=${end}`;
   if (bid) url += `&biomedica_id=${bid}`;
@@ -1145,19 +1145,17 @@ function nextMonth() {
 
 // ── AGENDAMENTOS (LISTA) ───────────────────────────────────────
 function setupAgendamentosPage() {
-  // mostrar coluna biomédica para admin/agendador
-  if (['admin','agendador'].includes(currentUser?.role)) {
-    document.getElementById('th-biomedica').style.display = '';
-    document.getElementById('f-biomedica-wrap').style.display = '';
-    const sel = document.getElementById('f-biomedica');
-    if (sel.options.length <= 1) {
-      biomedicas.forEach(b => {
-        const o = document.createElement('option');
-        o.value = b.id; o.textContent = b.name;
-        sel.appendChild(o);
-      });
-    }
-  }
+  document.getElementById('th-biomedica').style.display = '';
+
+  // filtro rápido de biomédica, disponível para todos os papéis
+  const quickSel = document.getElementById('quick-bio-filter');
+  biomedicas.forEach(b => {
+    const o = document.createElement('option');
+    o.value = b.id; o.textContent = b.name;
+    quickSel.appendChild(o);
+  });
+  quickSel.value = currentUser?.role === 'biomedica' ? 'me' : '';
+
   if (currentUser?.role === 'biomedica') {
     document.getElementById('btn-novo').style.display = 'none';
     document.getElementById('btn-importar').style.display = 'none';
@@ -1175,7 +1173,8 @@ async function loadEntries() {
   if (!agendamentosSetup) { setupAgendamentosPage(); agendamentosSetup = true; }
   const start   = document.getElementById('f-start').value;
   const end     = document.getElementById('f-end').value;
-  const bid     = document.getElementById('f-biomedica').value;
+  const quickBio = document.getElementById('quick-bio-filter').value;
+  const bid     = quickBio === 'me' ? currentUser.id : quickBio;
   const patient = document.getElementById('f-patient').value.trim();
 
   let url = '/api/entries?';
@@ -1196,7 +1195,7 @@ async function loadEntries() {
 function renderEntriesTable(entries) {
   const tbody = document.getElementById('entries-tbody');
   const empty = document.getElementById('entries-empty');
-  const showBio = ['admin','agendador'].includes(currentUser?.role);
+  const showBio = true;
 
   if (!entries.length) {
     tbody.innerHTML = '';
@@ -1209,7 +1208,8 @@ function renderEntriesTable(entries) {
     const isPendente  = e.status === 'pendente';
     const canEdit     = ['admin','agendador'].includes(currentUser.role) && isPendente;
     const canDelete   = ['admin','agendador'].includes(currentUser.role) && isPendente;
-    const canComplete = currentUser.role !== 'agendador' && isPendente;
+    const isOwnEntry  = currentUser.role !== 'biomedica' || e.biomedica_id === currentUser.id;
+    const canComplete = currentUser.role !== 'agendador' && isPendente && isOwnEntry;
     const canStatus   = ['admin','agendador'].includes(currentUser.role);
     const planoNome   = e.plan_nome || e.plano;
     const sessaoInfo  = planoNome || e.sessao
@@ -1267,7 +1267,6 @@ async function setConfirmation(id, confirmation_status) {
 }
 
 function clearFilters() {
-  document.getElementById('f-biomedica').value = '';
   document.getElementById('f-patient').value  = '';
   selectedPlanIds.clear();
   renderPlanFilterPopover();

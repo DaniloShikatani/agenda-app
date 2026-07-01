@@ -143,7 +143,7 @@ app.delete('/api/users/:id', auth, requireRole('admin'), async (req, res) => {
 });
 
 // ── BIOMEDICAS (agendador + admin) ─────────────────────────────
-app.get('/api/biomedicas', auth, requireRole('admin', 'agendador'), async (req, res) => {
+app.get('/api/biomedicas', auth, async (req, res) => {
   const { rows } = await pool.query("SELECT id, name, email FROM users WHERE role = 'biomedica' AND active = true ORDER BY name");
   return res.json(rows);
 });
@@ -154,10 +154,7 @@ app.get('/api/entries', auth, async (req, res) => {
   const vals = []; let i = 1;
   let where = '1=1';
 
-  if (req.user.role === 'biomedica') {
-    where += ` AND e.biomedica_id = $${i++}`;
-    vals.push(req.user.id);
-  } else if (biomedica_id) {
+  if (biomedica_id) {
     where += ` AND e.biomedica_id = $${i++}`;
     vals.push(biomedica_id);
   }
@@ -182,6 +179,18 @@ app.get('/api/entries', auth, async (req, res) => {
      ORDER BY e.date, e.time`,
     vals
   );
+
+  // Biomédica vendo a agenda de uma colega: oculta dados financeiros do atendimento
+  if (req.user.role === 'biomedica') {
+    for (const row of rows) {
+      if (row.biomedica_id !== req.user.id) {
+        row.value = null;
+        row.receipt_path = null;
+        row.note = null;
+      }
+    }
+  }
+
   return res.json(rows);
 });
 
