@@ -955,8 +955,7 @@ async function bootApp() {
   procedureTypes = await apiFetch('/api/procedure-types?active=true');
   plans = await apiFetch('/api/plans?active=true');
 
-  const startPage = currentUser.role === 'biomedica' ? 'calendario' : 'agendamentos';
-  navigate(startPage);
+  navigate('agendamentos');
 }
 
 function buildNav() {
@@ -964,8 +963,8 @@ function buildNav() {
   const items = [];
 
   if (currentUser.role === 'biomedica') {
-    items.push({ id:'calendario',   icon:'📅', label:'Calendário'    });
     items.push({ id:'agendamentos', icon:'📋', label:'Meus Atendimentos' });
+    items.push({ id:'calendario',   icon:'📅', label:'Calendário'    });
     items.push({ id:'financeiro',   icon:'💰', label:'Financeiro'    });
   } else if (currentUser.role === 'agendador') {
     items.push({ id:'agendamentos', icon:'📋', label:'Agendamentos'  });
@@ -1160,12 +1159,9 @@ function setupAgendamentosPage() {
     document.getElementById('btn-novo').style.display = 'none';
     document.getElementById('btn-importar').style.display = 'none';
   }
-  // default dates: current month
-  const now = new Date();
-  const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
-  const last = new Date(y, now.getMonth()+1, 0).getDate();
-  document.getElementById('f-start').value = `${y}-${m}-01`;
-  document.getElementById('f-end').value   = `${y}-${m}-${String(last).padStart(2,'0')}`;
+  // default: dia atual (tela inicial sempre abre mostrando os atendimentos de hoje)
+  document.getElementById('f-start').value = today();
+  document.getElementById('f-end').value   = today();
 }
 
 let agendamentosSetup = false;
@@ -1271,10 +1267,8 @@ function clearFilters() {
   selectedPlanIds.clear();
   renderPlanFilterPopover();
   updatePlanFilterLabel();
-  const now = new Date();
-  const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
-  document.getElementById('f-start').value = `${y}-${m}-01`;
-  document.getElementById('f-end').value   = `${y}-${m}-${new Date(y,now.getMonth()+1,0).getDate()}`;
+  document.getElementById('f-start').value = today();
+  document.getElementById('f-end').value   = today();
   loadEntries();
 }
 
