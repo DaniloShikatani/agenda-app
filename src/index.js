@@ -524,6 +524,87 @@ app.delete('/api/financeiro/deposits/:id', auth, requireRole('admin'), async (re
   return res.json({ success: true });
 });
 
+// ── PAINEL GERENCIAL (ADMIN) ────────────────────────────────────
+function dateFilter(col, start, end, startIdx) {
+  const clauses = []; const vals = []; let i = startIdx;
+  if (start) { clauses.push(`${col} >= $${i++}`); vals.push(start); }
+  if (end)   { clauses.push(`${col} <= $${i++}`); vals.push(end); }
+  return { clause: clauses.length ? clauses.join(' AND ') : '1=1', vals };
+}
+
+app.get('/api/dashboard/resumo', auth, requireRole('admin'), async (req, res) => {
+  const { start, end } = req.query;
+  try {
+    const entryDate = dateFilter('date', start, end, 1);
+    const { rows: statusRows } = await pool.query(
+      `SELECT status, COUNT(*)::int AS n FROM entries WHERE ${entryDate.clause} GROUP BY status`,
+      entryDate.vals
+    );
+    const totals = { pendente: 0, concluido: 0, biomedica_faltou: 0, paciente_cancelou: 0 };
+    let total = 0;
+    for (const r of statusRows) { totals[r.status] = r.n; total += r.n; }
+
+    const { rows: expRows } = await pool.query(
+      `SELECT COALESCE(SUM(value),0) AS total FROM entries WHERE status='concluido' AND ${entryDate.clause}`,
+      entryDate.vals
+    );
+
+    const depDate = dateFilter('date', start, end, 1);
+    const { rows: depRows } = await pool.query(
+      `SELECT COALESCE(SUM(value),0) AS total FROM deposits WHERE ${depDate.clause}`,
+      depDate.vals
+    );
+
+    const patDate = dateFilter('created_at::date', start, end, 1);
+    const { rows: patRows } = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM patients WHERE ${patDate.clause}`,
+      patDate.vals
+    );
+
+    const bioDate = dateFilter('e.date', start, end, 1);
+    const { rows: bioRows } = await pool.query(
+      `SELECT b.id AS biomedica_id, b.name AS biomedica_name,
+              COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE e.status='concluido')::int AS concluido
+       FROM entries e JOIN users b ON b.id = e.biomedica_id
+       WHERE ${bioDate.clause}
+       GROUP BY b.id, b.name ORDER BY total DESC`,
+      bioDate.vals
+    );
+
+    const planDate = dateFilter('e.date', start, end, 1);
+    const { rows: planRows } = await pool.query(
+      `SELECT COALESCE(p.nome, e.plano, 'Sem plano') AS plano, COUNT(*)::int AS total
+       FROM entries e LEFT JOIN plans p ON p.id = e.plan_id
+       WHERE ${planDate.clause}
+       GROUP BY COALESCE(p.nome, e.plano, 'Sem plano') ORDER BY total DESC`,
+      planDate.vals
+    );
+
+    const dayDate = dateFilter('date', start, end, 1);
+    const { rows: dayRows } = await pool.query(
+      `SELECT date, COUNT(*)::int AS total FROM entries WHERE ${dayDate.clause} GROUP BY date ORDER BY date`,
+      dayDate.vals
+    );
+
+    return res.json({
+      totals: { total, ...totals, taxa_conclusao: total ? totals.concluido / total : 0 },
+      financeiro: {
+        total_gasto:      parseFloat(expRows[0].total),
+        total_depositado: parseFloat(depRows[0].total),
+        saldo:            parseFloat(depRows[0].total) - parseFloat(expRows[0].total),
+      },
+      novos_pacientes: patRows[0].n,
+      por_biomedica:   bioRows,
+      por_plano:       planRows,
+      por_dia:         dayRows,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Erro ao calcular painel gerencial' });
+  }
+});
+
 // ── PARÂMETROS: TIPOS DE PROCEDIMENTO ─────────────────────────
 app.get('/api/procedure-types', auth, async (req, res) => {
   const onlyActive = req.query.active === 'true';

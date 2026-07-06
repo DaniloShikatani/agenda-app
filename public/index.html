@@ -279,6 +279,50 @@ tr:hover td { background:var(--bg); }
   <!-- MAIN -->
   <main id="main">
 
+    <!-- PÁGINA: PAINEL GERENCIAL -->
+    <div class="page" id="page-painel">
+      <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <div class="page-title">Painel Gerencial</div>
+          <div class="page-subtitle">Principais indicadores do processo de atendimento</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+          <div>
+            <label class="form-label" style="margin-bottom:4px">De</label>
+            <input type="date" class="form-input" id="pnl-start" style="width:150px" onchange="loadPainel()"/>
+          </div>
+          <div>
+            <label class="form-label" style="margin-bottom:4px">Até</label>
+            <input type="date" class="form-input" id="pnl-end" style="width:150px" onchange="loadPainel()"/>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="clearPainelFilters()">Limpar</button>
+        </div>
+      </div>
+
+      <div class="kpi-grid" id="pnl-kpi" style="margin-top:16px"></div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px" id="pnl-grid-2col">
+        <div class="card" style="padding:16px">
+          <div class="card-title">Atendimentos por biomédica</div>
+          <div id="pnl-bio-chart"></div>
+        </div>
+        <div class="card" style="padding:16px">
+          <div class="card-title">Atendimentos por plano</div>
+          <div id="pnl-plano-chart"></div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:16px;margin-bottom:16px">
+        <div class="card-title">Status dos agendamentos</div>
+        <div id="pnl-status-chart"></div>
+      </div>
+
+      <div class="card" style="padding:16px">
+        <div class="card-title">Atendimentos por dia</div>
+        <div id="pnl-trend-chart"></div>
+      </div>
+    </div>
+
     <!-- PÁGINA: CALENDÁRIO -->
     <div class="page" id="page-calendario">
       <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
@@ -1016,6 +1060,7 @@ function buildNav() {
     items.push({ id:'calendario',   icon:'📅', label:'Calendário'    });
     items.push({ id:'fechamento',   icon:'🔒', label:'Fechamento do Dia' });
   } else { // admin
+    items.push({ id:'painel',       icon:'📊', label:'Painel Gerencial' });
     items.push({ id:'agendamentos', icon:'📋', label:'Agendamentos'  });
     items.push({ id:'calendario',   icon:'📅', label:'Calendário'    });
     items.push({ id:'financeiro',   icon:'💰', label:'Financeiro'    });
@@ -1048,6 +1093,7 @@ function navigate(page) {
   if (page === 'planos') loadPlanos();
   if (page === 'parametros') loadParametros();
   if (page === 'fechamento') loadFechamento();
+  if (page === 'painel') loadPainel();
 
   if (window.innerWidth <= 768) {
     document.getElementById('sidebar').classList.remove('open');
@@ -1055,6 +1101,147 @@ function navigate(page) {
   }
 }
 function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+// ── PAINEL GERENCIAL (ADMIN) ────────────────────────────────────
+let painelSetup = false;
+function setupPainelPage() {
+  const now = new Date();
+  document.getElementById('pnl-start').value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10);
+  document.getElementById('pnl-end').value = today();
+}
+
+function clearPainelFilters() {
+  setupPainelPage();
+  loadPainel();
+}
+
+async function loadPainel() {
+  if (!painelSetup) { setupPainelPage(); painelSetup = true; }
+  const start = document.getElementById('pnl-start').value;
+  const end   = document.getElementById('pnl-end').value;
+  let url = '/api/dashboard/resumo?';
+  if (start) url += `start=${encodeURIComponent(start)}&`;
+  if (end)   url += `end=${encodeURIComponent(end)}&`;
+  try {
+    const data = await apiFetch(url);
+    renderPainelKpis(data);
+    renderBarChart('pnl-bio-chart', data.por_biomedica.map(b => ({ label: b.biomedica_name, value: b.total })), 'var(--primary)');
+    renderPlanoChart(data.por_plano);
+    renderStatusChart(data.totals);
+    renderTrendChart(data.por_dia);
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+function renderPainelKpis(data) {
+  const t = data.totals;
+  const fin = data.financeiro;
+  const pct = (n) => t.total ? (n / t.total * 100).toFixed(1) : '0.0';
+  document.getElementById('pnl-kpi').innerHTML = `
+    <div class="kpi"><div class="kpi-label">Total de atendimentos</div><div class="kpi-value">${t.total}</div><div class="kpi-sub">no período selecionado</div></div>
+    <div class="kpi green"><div class="kpi-label">Concluídos</div><div class="kpi-value">${t.concluido}</div><div class="kpi-sub">${(t.taxa_conclusao*100).toFixed(1)}% de conclusão</div></div>
+    <div class="kpi"><div class="kpi-label">Pendentes</div><div class="kpi-value">${t.pendente}</div><div class="kpi-sub">${pct(t.pendente)}% do total</div></div>
+    <div class="kpi red"><div class="kpi-label">Biomédica faltou</div><div class="kpi-value">${t.biomedica_faltou}</div><div class="kpi-sub">${pct(t.biomedica_faltou)}% do total</div></div>
+    <div class="kpi red"><div class="kpi-label">Paciente cancelou</div><div class="kpi-value">${t.paciente_cancelou}</div><div class="kpi-sub">${pct(t.paciente_cancelou)}% do total</div></div>
+    <div class="kpi blue"><div class="kpi-label">Total gasto</div><div class="kpi-value" style="font-size:20px">${fmtMoney(fin.total_gasto)}</div><div class="kpi-sub">prestações de contas</div></div>
+    <div class="kpi blue"><div class="kpi-label">Total depositado</div><div class="kpi-value" style="font-size:20px">${fmtMoney(fin.total_depositado)}</div><div class="kpi-sub">adiantamentos às biomédicas</div></div>
+    <div class="kpi ${fin.saldo>=0?'green':'red'}"><div class="kpi-label">Saldo geral</div><div class="kpi-value" style="font-size:20px">${fmtMoney(Math.abs(fin.saldo))}</div><div class="kpi-sub">${fin.saldo>=0?'disponível com as biomédicas':'a repor'}</div></div>
+    <div class="kpi"><div class="kpi-label">Novos pacientes</div><div class="kpi-value">${data.novos_pacientes}</div><div class="kpi-sub">cadastrados no período</div></div>
+  `;
+}
+
+function renderBarChart(containerId, rows, color) {
+  const container = document.getElementById(containerId);
+  if (!rows.length) { container.innerHTML = '<p style="color:var(--muted);font-size:13px">Sem dados no período.</p>'; return; }
+  const max = Math.max(...rows.map(r => r.value), 1);
+  container.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px">` + rows.map(r => {
+    const pct = (r.value / max * 100).toFixed(1);
+    return `
+      <div>
+        <div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;margin-bottom:4px">
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.label}</span>
+          <span style="font-weight:600;flex-shrink:0">${r.value}</span>
+        </div>
+        <div style="background:var(--bg);border-radius:4px;height:10px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${color};border-radius:4px" title="${r.label}: ${r.value}"></div>
+        </div>
+      </div>`;
+  }).join('') + `</div>`;
+}
+
+function renderPlanoChart(planoRows) {
+  const TOP_N = 6;
+  let rows = planoRows;
+  if (rows.length > TOP_N) {
+    const top = rows.slice(0, TOP_N);
+    const restTotal = rows.slice(TOP_N).reduce((s,r) => s + r.total, 0);
+    rows = [...top, { plano: 'Outros', total: restTotal }];
+  }
+  renderBarChart('pnl-plano-chart', rows.map(r => ({ label: r.plano, value: r.total })), 'var(--primary2)');
+}
+
+function renderStatusChart(totals) {
+  const container = document.getElementById('pnl-status-chart');
+  const segments = [
+    { key:'concluido',         label:'Concluído',         icon:'✅', color:'var(--green)' },
+    { key:'pendente',          label:'Pendente',          icon:'⏳', color:'var(--muted)' },
+    { key:'biomedica_faltou',  label:'Biomédica faltou',  icon:'🚫', color:'var(--red)' },
+    { key:'paciente_cancelou', label:'Paciente cancelou', icon:'❌', color:'var(--primary)' },
+  ];
+  const total = totals.total || 0;
+  if (!total) { container.innerHTML = '<p style="color:var(--muted);font-size:13px">Sem dados no período.</p>'; return; }
+  const bar = segments.map(s => {
+    const n = totals[s.key] || 0;
+    const pct = (n / total * 100);
+    if (!pct) return '';
+    return `<div style="width:${pct}%;background:${s.color}" title="${s.label}: ${n} (${pct.toFixed(1)}%)"></div>`;
+  }).join('');
+  const legend = segments.map(s => {
+    const n = totals[s.key] || 0;
+    const pct = (n / total * 100).toFixed(1);
+    return `<div style="display:flex;align-items:center;gap:6px;font-size:12px">
+      <span style="width:10px;height:10px;border-radius:2px;background:${s.color};display:inline-block;flex-shrink:0"></span>
+      <span>${s.icon} ${s.label}</span>
+      <span style="font-weight:600;margin-left:auto">${n} (${pct}%)</span>
+    </div>`;
+  }).join('');
+  container.innerHTML = `
+    <div style="display:flex;gap:2px;height:16px;border-radius:8px;overflow:hidden;background:var(--bg);margin-bottom:14px">${bar}</div>
+    <div style="display:flex;flex-direction:column;gap:8px;max-width:360px">${legend}</div>
+  `;
+}
+
+function renderTrendChart(porDia) {
+  const container = document.getElementById('pnl-trend-chart');
+  if (!porDia.length) { container.innerHTML = '<p style="color:var(--muted);font-size:13px">Sem dados no período.</p>'; return; }
+  const w = 700, h = 180, pad = 32;
+  const max = Math.max(...porDia.map(d => d.total), 1);
+  const stepX = porDia.length > 1 ? (w - pad*2) / (porDia.length - 1) : 0;
+  const points = porDia.map((d, i) => ({
+    x: pad + i * stepX,
+    y: h - pad - (d.total / max) * (h - pad*2),
+    d
+  }));
+  const linePath = points.map((p,i) => `${i===0?'M':'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const areaPath = `${linePath} L${points[points.length-1].x.toFixed(1)},${h-pad} L${points[0].x.toFixed(1)},${h-pad} Z`;
+  const dots = points.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="var(--primary)"><title>${fmtDate(p.d.date?.slice?.(0,10))}: ${p.d.total}</title></circle>`).join('');
+  const labelIdxs = new Set([0, points.length-1]);
+  if (points.length > 2) labelIdxs.add(Math.floor((points.length-1)/2));
+  const labels = [...labelIdxs].map(i => {
+    const p = points[i];
+    return `<text x="${p.x.toFixed(1)}" y="${h-8}" font-size="10" fill="var(--muted)" text-anchor="middle">${fmtDate(p.d.date?.slice?.(0,10))}</text>`;
+  }).join('');
+  container.innerHTML = `
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:200px" preserveAspectRatio="none">
+      <line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" stroke="var(--border)" stroke-width="1"/>
+      <path d="${areaPath}" fill="var(--primary)" opacity="0.12" stroke="none"/>
+      <path d="${linePath}" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      ${dots}
+      ${labels}
+    </svg>
+  `;
+}
 
 function toggleSidebar() {
   document.getElementById('sidebar').classList.toggle('open');
