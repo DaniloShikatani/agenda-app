@@ -368,12 +368,13 @@ tr:hover td { background:var(--bg); }
           <table>
             <thead>
               <tr>
-                <th>Data / Hora</th>
+                <th>Data / Horário</th>
                 <th>Paciente</th>
                 <th id="th-biomedica" style="display:none">Biomédica</th>
-                <th>Plano / Sessão</th>
+                <th>Local de atendimento</th>
+                <th>Plano</th>
+                <th>Número da sessão</th>
                 <th>Tratamento do dia</th>
-                <th>Tipo</th>
                 <th>Status</th>
                 <th>Ações</th>
               </tr>
@@ -571,14 +572,14 @@ tr:hover td { background:var(--bg); }
       </div>
     </div>
     <div class="form-group">
-      <label class="form-label">Endereço</label>
+      <label class="form-label">Endereço *</label>
       <input class="form-input" type="text" id="entry-address" placeholder="Rua, número, bairro"/>
     </div>
 
     <!-- Plano / Sessão -->
     <div class="form-row-3">
       <div class="form-group">
-        <label class="form-label">Plano</label>
+        <label class="form-label">Plano *</label>
         <select class="form-select" id="entry-plan-id" onchange="onPlanChange()">
           <option value="">Selecione...</option>
         </select>
@@ -599,7 +600,7 @@ tr:hover td { background:var(--bg); }
         <input class="form-input" type="number" id="entry-value" min="0" step="0.01" placeholder="0,00"/>
       </div>
       <div class="form-group">
-        <label class="form-label">Motorista</label>
+        <label class="form-label">Motorista *</label>
         <input class="form-input" type="text" id="entry-driver" placeholder="Nome do motorista"/>
       </div>
       <div class="form-group">
@@ -1155,7 +1156,6 @@ function entryCard(e) {
     <div style="display:flex;flex-direction:column;gap:4px">
       ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="openEntryModal(${JSON.stringify(e).replace(/"/g,'&quot;')})">✏️</button>` : ''}
       ${canComplete ? `<button class="btn btn-success btn-sm" onclick="openPrestacao(${JSON.stringify(e).replace(/"/g,'&quot;')})">✓</button>` : ''}
-      ${canStatus ? `<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="marcarStatus(${e.id},'biomedica_faltou')" title="Biomédica faltou">🚫</button>` : ''}
       ${canStatus ? `<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="marcarStatus(${e.id},'paciente_cancelou')" title="Paciente cancelou">❌</button>` : ''}
     </div>
   </div>`;
@@ -1238,14 +1238,16 @@ function renderEntriesTable(entries) {
     const canComplete = currentUser.role !== 'agendador' && isPendente && isOwnEntry;
     const canStatus   = ['admin','agendador'].includes(currentUser.role);
     const planoNome   = e.plan_nome || e.plano;
-    const sessaoInfo  = planoNome || e.sessao
-      ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${planoNome||''}${e.sessao ? ` · Sessão ${e.sessao}${e.total_sessoes ? '/' + e.total_sessoes : ''}` : ''}</div>`
-      : '';
+    const sessaoLabel = e.sessao
+      ? `Sessão ${e.sessao}${e.total_sessoes ? ` de ${e.total_sessoes}` : ''}`
+      : '—';
     return `<tr>
       <td><strong>${fmtDate(e.date?.slice?.(0,10))}</strong><br><span style="color:var(--muted);font-size:12px">${fmtHHhMM(e.time)} às ${addMinutesToTime(e.time, e.duration_minutes)}</span></td>
-      <td>${e.patient}${sessaoInfo}</td>
+      <td>${e.patient}</td>
       ${showBio ? `<td>${e.biomedica_name}</td>` : ''}
-      <td>${planoNome ? `<span style="font-size:12px">${planoNome}</span><br>` : ''}<span style="font-size:12px;color:var(--muted)">${e.sessao ? `Sessão ${e.sessao}${e.total_sessoes?'/'+e.total_sessoes:''} · ` : ''}${e.type||'Coleta'}</span></td>
+      <td style="font-size:12px">${e.address || '—'}</td>
+      <td style="font-size:12px">${planoNome || '—'}</td>
+      <td style="font-size:12px">${sessaoLabel}</td>
       <td style="font-size:12px">${e.tratamento || '—'}</td>
       <td>${confirmationBadge(e.confirmation_status)}</td>
       <td>
@@ -1587,8 +1589,8 @@ async function saveEntry() {
     sessao:        document.getElementById('entry-sessao').value || null,
     total_sessoes: document.getElementById('entry-total-sessoes').value || null,
   };
-  if (!body.biomedica_id || !body.date || !body.time || !body.patient) {
-    showAlert('modal-entry-alert', 'Preencha os campos obrigatórios (biomédica, data, hora e paciente)');
+  if (!body.biomedica_id || !body.date || !body.time || !body.patient || !body.plan_id || !body.address || !body.driver) {
+    showAlert('modal-entry-alert', 'Preencha os campos obrigatórios (paciente, plano, data, horário, local de atendimento, biomédica e motorista)');
     return;
   }
   try {
@@ -1625,8 +1627,8 @@ async function saveBulkEntries() {
     plan_id:       document.getElementById('entry-plan-id').value || null,
     total_sessoes: total,
   };
-  if (!document.getElementById('entry-biomedica').value || !base.patient) {
-    showAlert('modal-entry-alert', 'Preencha biomédica e paciente');
+  if (!document.getElementById('entry-biomedica').value || !base.patient || !base.plan_id) {
+    showAlert('modal-entry-alert', 'Preencha biomédica, paciente e plano');
     return;
   }
   const entries = [];
@@ -1637,8 +1639,8 @@ async function saveBulkEntries() {
     const driver     = document.getElementById(`bulk-driver-${i}`)?.value.trim();
     const biomedica_id = document.getElementById(`bulk-bio-${i}`)?.value;
     const tratamento = document.getElementById(`bulk-tratamento-${i}`)?.value.trim();
-    if (!date || !time || !biomedica_id) {
-      showAlert('modal-entry-alert', `Preencha data, hora e biomédica da sessão ${sessaoBase + i}`);
+    if (!date || !time || !biomedica_id || !address || !driver) {
+      showAlert('modal-entry-alert', `Preencha data, hora, local de atendimento, biomédica e motorista da sessão ${sessaoBase + i}`);
       return;
     }
     entries.push({ ...base, date, time, address, driver, biomedica_id, tratamento, sessao: sessaoBase + i });
