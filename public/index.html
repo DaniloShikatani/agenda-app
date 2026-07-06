@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Dr. Renan Brigante · Agenda</title>
+<title>Dr. Renan Brigante · Gestão de Atendimentos Home Care</title>
 <style>
 :root {
   --bg:        #F5F0EB;
@@ -238,7 +238,7 @@ tr:hover td { background:var(--bg); }
   <div class="login-box">
     <div class="login-logo">
       <img src="https://renanbrigante.com/wp-content/uploads/2025/05/rbn.svg" alt="Dr. Renan Brigante"/>
-      <p>Plataforma de agendamento</p>
+      <p>Gestão de Atendimentos Home Care</p>
     </div>
     <div class="login-box-body">
       <div id="login-alert"></div>
@@ -264,7 +264,7 @@ tr:hover td { background:var(--bg); }
   <nav id="sidebar">
     <div class="sidebar-logo">
       <img src="https://renanbrigante.com/wp-content/uploads/2025/05/rbn.svg" alt="Dr. Renan Brigante"/>
-      <p>Gestão de atendimentos</p>
+      <p>Gestão de Atendimentos Home Care</p>
     </div>
     <div class="sidebar-user">
       <div class="user-name" id="sb-name">—</div>
@@ -1142,7 +1142,6 @@ function renderPainelKpis(data) {
     <div class="kpi"><div class="kpi-label">Total de atendimentos</div><div class="kpi-value">${t.total}</div><div class="kpi-sub">no período selecionado</div></div>
     <div class="kpi green"><div class="kpi-label">Concluídos</div><div class="kpi-value">${t.concluido}</div><div class="kpi-sub">${(t.taxa_conclusao*100).toFixed(1)}% de conclusão</div></div>
     <div class="kpi"><div class="kpi-label">Pendentes</div><div class="kpi-value">${t.pendente}</div><div class="kpi-sub">${pct(t.pendente)}% do total</div></div>
-    <div class="kpi red"><div class="kpi-label">Biomédica faltou</div><div class="kpi-value">${t.biomedica_faltou}</div><div class="kpi-sub">${pct(t.biomedica_faltou)}% do total</div></div>
     <div class="kpi red"><div class="kpi-label">Paciente cancelou</div><div class="kpi-value">${t.paciente_cancelou}</div><div class="kpi-sub">${pct(t.paciente_cancelou)}% do total</div></div>
     <div class="kpi blue"><div class="kpi-label">Total gasto</div><div class="kpi-value" style="font-size:20px">${fmtMoney(fin.total_gasto)}</div><div class="kpi-sub">prestações de contas</div></div>
     <div class="kpi blue"><div class="kpi-label">Total depositado</div><div class="kpi-value" style="font-size:20px">${fmtMoney(fin.total_depositado)}</div><div class="kpi-sub">adiantamentos às biomédicas</div></div>
@@ -1186,8 +1185,7 @@ function renderStatusChart(totals) {
   const segments = [
     { key:'concluido',         label:'Concluído',         icon:'✅', color:'var(--green)' },
     { key:'pendente',          label:'Pendente',          icon:'⏳', color:'var(--muted)' },
-    { key:'biomedica_faltou',  label:'Biomédica faltou',  icon:'🚫', color:'var(--red)' },
-    { key:'paciente_cancelou', label:'Paciente cancelou', icon:'❌', color:'var(--primary)' },
+    { key:'paciente_cancelou', label:'Paciente cancelou', icon:'❌', color:'var(--red)' },
   ];
   const total = totals.total || 0;
   if (!total) { container.innerHTML = '<p style="color:var(--muted);font-size:13px">Sem dados no período.</p>'; return; }
@@ -1864,7 +1862,7 @@ async function saveBulkEntries() {
 }
 
 async function marcarStatus(id, status) {
-  const labels = { biomedica_faltou: 'Biomédica faltou?', paciente_cancelou: 'Paciente cancelou?' };
+  const labels = { paciente_cancelou: 'Paciente cancelou?' };
   if (!confirm(labels[status] || 'Confirmar alteração de status?')) return;
   try {
     await apiFetch(`/api/entries/${id}/status`, { method:'PATCH', body: JSON.stringify({ status }) });

@@ -285,7 +285,7 @@ app.put('/api/entries/:id', auth, requireRole('admin', 'agendador'), async (req,
 
 app.patch('/api/entries/:id/status', auth, requireRole('admin', 'agendador'), async (req, res) => {
   const { status } = req.body;
-  const valid = ['pendente', 'biomedica_faltou', 'paciente_cancelou'];
+  const valid = ['pendente', 'paciente_cancelou'];
   if (!valid.includes(status)) return res.status(400).json({ error: 'Status inválido' });
   try {
     const { rows } = await pool.query(
