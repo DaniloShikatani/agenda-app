@@ -410,8 +410,10 @@ app.post('/api/entries/import', auth, requireRole('admin', 'agendador'), upload.
 
 // ── PRESTAR CONTAS ─────────────────────────────────────────────
 app.post('/api/entries/:id/prestar-contas', auth, requireRole('biomedica', 'admin'), upload.single('comprovante'), async (req, res) => {
-  const { note, value } = req.body;
+  const { note, value, actual_start_time, actual_end_time } = req.body;
   const receiptPath = req.file ? `/uploads/${req.file.filename}` : null;
+  if (actual_start_time && !/^\d{2}:\d{2}(:\d{2})?$/.test(actual_start_time)) return res.status(400).json({ error: 'Horário de início inválido' });
+  if (actual_end_time && !/^\d{2}:\d{2}(:\d{2})?$/.test(actual_end_time)) return res.status(400).json({ error: 'Horário de fim inválido' });
   try {
     const { rows: check } = await pool.query(
       "SELECT * FROM entries WHERE id=$1 AND status='pendente'",
@@ -427,9 +429,11 @@ app.post('/api/entries/:id/prestar-contas', auth, requireRole('biomedica', 'admi
        note=COALESCE($1, note),
        value=COALESCE($2, value),
        receipt_path=COALESCE($3, receipt_path),
+       actual_start_time=COALESCE($4, actual_start_time),
+       actual_end_time=COALESCE($5, actual_end_time),
        updated_at=now()
-       WHERE id=$4 RETURNING *`,
-      [note || null, spentValue, receiptPath, req.params.id]
+       WHERE id=$6 RETURNING *`,
+      [note || null, spentValue, receiptPath, actual_start_time || null, actual_end_time || null, req.params.id]
     );
     return res.json(rows[0]);
   } catch (err) {
@@ -681,7 +685,7 @@ app.get('/api/daily-agenda/:date', auth, async (req, res) => {
   return res.json(rows[0] || { date: req.params.date, lunch_time: null, closed_at: null, closed_by: null });
 });
 
-app.put('/api/daily-agenda/:date/lunch', auth, requireRole('admin', 'agendador'), async (req, res) => {
+app.put('/api/daily-agenda/:date/lunch', auth, requireRole('admin', 'agendador', 'biomedica'), async (req, res) => {
   const { lunch_time } = req.body;
   if (!/^\d{2}:\d{2}(:\d{2})?$/.test(lunch_time || '')) return res.status(400).json({ error: 'Horário inválido' });
   const { rows: existing } = await pool.query('SELECT closed_at FROM daily_agenda WHERE date=$1', [req.params.date]);
@@ -694,7 +698,7 @@ app.put('/api/daily-agenda/:date/lunch', auth, requireRole('admin', 'agendador')
   return res.json(rows[0]);
 });
 
-app.post('/api/daily-agenda/:date/close', auth, requireRole('admin', 'agendador'), async (req, res) => {
+app.post('/api/daily-agenda/:date/close', auth, requireRole('admin', 'agendador', 'biomedica'), async (req, res) => {
   const date = req.params.date;
   const { rows: existing } = await pool.query('SELECT * FROM daily_agenda WHERE date=$1', [date]);
   if (!existing.length || !existing[0].lunch_time) return res.status(400).json({ error: 'Defina o horário de almoço antes de encerrar o dia' });

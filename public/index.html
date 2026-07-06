@@ -452,7 +452,7 @@ tr:hover td { background:var(--bg); }
       <div class="page-header">
         <div>
           <div class="page-title">Fechamento do Dia</div>
-          <div class="page-subtitle">Defina o horário de almoço e conclua a agenda diária</div>
+          <div class="page-subtitle" id="fech-subtitle">Defina o horário de almoço e conclua a agenda diária</div>
         </div>
       </div>
       <div class="card" style="margin-top:16px;padding:16px;max-width:520px">
@@ -465,7 +465,7 @@ tr:hover td { background:var(--bg); }
             <label class="form-label">Horário de almoço</label>
             <input class="form-input" type="time" id="fech-lunch"/>
           </div>
-          <div class="form-group" style="display:flex;align-items:flex-end">
+          <div class="form-group" style="display:flex;align-items:flex-end" id="fech-save-lunch-wrap">
             <button class="btn btn-ghost" onclick="saveLunchTime()">Salvar horário de almoço</button>
           </div>
         </div>
@@ -649,6 +649,16 @@ tr:hover td { background:var(--bg); }
     <div id="prestacao-info" style="background:var(--bg);border-radius:8px;padding:16px;margin-bottom:16px;font-size:13px;"></div>
     <div id="modal-prestacao-alert"></div>
     <input type="hidden" id="prestacao-entry-id"/>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Horário de início *</label>
+        <input class="form-input" type="time" id="prestacao-start-time"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Horário de fim *</label>
+        <input class="form-input" type="time" id="prestacao-end-time"/>
+      </div>
+    </div>
     <div class="form-group">
       <label class="form-label">Valor total gasto (R$) *</label>
       <input class="form-input" type="number" id="prestacao-value" min="0" step="0.01" placeholder="Ex: 25,50 (uber + pedágio)"/>
@@ -914,6 +924,12 @@ function addMinutesToTime(t, mins) {
   const d = new Date(2000, 0, 1, h, m + (mins || 100));
   return `${String(d.getHours()).padStart(2,'0')}h${String(d.getMinutes()).padStart(2,'0')}`;
 }
+function addMinutesToTimeHHMM(t, mins) {
+  if (!t) return '';
+  const [h, m] = fmtTime(t).split(':').map(Number);
+  const d = new Date(2000, 0, 1, h, m + (mins || 100));
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
 function fmtMoney(v) {
   return 'R$ ' + parseFloat(v || 0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
@@ -994,6 +1010,7 @@ function buildNav() {
     items.push({ id:'agendamentos', icon:'📋', label:'Meus Atendimentos' });
     items.push({ id:'calendario',   icon:'📅', label:'Calendário'    });
     items.push({ id:'financeiro',   icon:'💰', label:'Financeiro'    });
+    items.push({ id:'fechamento',   icon:'🔒', label:'Fechamento do Dia' });
   } else if (currentUser.role === 'agendador') {
     items.push({ id:'agendamentos', icon:'📋', label:'Agendamentos'  });
     items.push({ id:'calendario',   icon:'📅', label:'Calendário'    });
@@ -1686,6 +1703,8 @@ function openPrestacao(entry) {
   document.getElementById('prestacao-note').value = '';
   document.getElementById('prestacao-value').value = entry.value || '';
   document.getElementById('prestacao-file').value = '';
+  document.getElementById('prestacao-start-time').value = entry.actual_start_time?.slice?.(0,5) || fmtTime(entry.time);
+  document.getElementById('prestacao-end-time').value   = entry.actual_end_time?.slice?.(0,5) || addMinutesToTimeHHMM(entry.time, entry.duration_minutes);
   document.getElementById('modal-prestacao-alert').className = 'alert';
   document.getElementById('prestacao-info').innerHTML = `
     <strong>${entry.patient}</strong><br>
@@ -1697,15 +1716,20 @@ function openPrestacao(entry) {
 }
 
 async function confirmarPrestacao() {
-  const id    = document.getElementById('prestacao-entry-id').value;
-  const note  = document.getElementById('prestacao-note').value.trim();
-  const value = document.getElementById('prestacao-value').value;
-  const file  = document.getElementById('prestacao-file').files[0];
+  const id         = document.getElementById('prestacao-entry-id').value;
+  const note       = document.getElementById('prestacao-note').value.trim();
+  const value      = document.getElementById('prestacao-value').value;
+  const file       = document.getElementById('prestacao-file').files[0];
+  const startTime  = document.getElementById('prestacao-start-time').value;
+  const endTime    = document.getElementById('prestacao-end-time').value;
 
   if (!value) { showAlert('modal-prestacao-alert', 'Informe o valor total gasto'); return; }
+  if (!startTime || !endTime) { showAlert('modal-prestacao-alert', 'Informe o horário de início e fim do atendimento'); return; }
 
   const fd = new FormData();
   fd.append('value', value);
+  fd.append('actual_start_time', startTime);
+  fd.append('actual_end_time', endTime);
   if (note) fd.append('note', note);
   if (file) fd.append('comprovante', file);
 
@@ -2120,6 +2144,8 @@ async function savePlanTreatments() {
 
 // ── FECHAMENTO DIÁRIO ────────────────────────────────────────────
 async function loadFechamento() {
+  document.getElementById('fech-subtitle').textContent = 'Defina o horário de almoço e conclua a agenda diária';
+
   const dateEl = document.getElementById('fech-date');
   if (!dateEl.value) dateEl.value = today();
   const date = dateEl.value;
