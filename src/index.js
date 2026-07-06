@@ -813,6 +813,46 @@ app.post('/api/daily-agenda/:date/close', auth, requireRole('admin', 'agendador'
   return res.json({ ...closedRows[0], email: emailResult });
 });
 
+// ── FOLGAS / FÉRIAS ─────────────────────────────────────────────
+app.get('/api/time-off', auth, async (req, res) => {
+  const { start, end, biomedica_id } = req.query;
+  const vals = []; let i = 1;
+  let where = '1=1';
+  if (biomedica_id) { where += ` AND t.biomedica_id = $${i++}`; vals.push(biomedica_id); }
+  if (start)        { where += ` AND t.end_date >= $${i++}`;   vals.push(start); }
+  if (end)          { where += ` AND t.start_date <= $${i++}`; vals.push(end); }
+  const { rows } = await pool.query(
+    `SELECT t.*, b.name AS biomedica_name, c.name AS created_by_name
+     FROM time_off t JOIN users b ON b.id = t.biomedica_id JOIN users c ON c.id = t.created_by
+     WHERE ${where} ORDER BY t.start_date`,
+    vals
+  );
+  return res.json(rows);
+});
+
+app.post('/api/time-off', auth, requireRole('admin', 'agendador'), async (req, res) => {
+  const { biomedica_id, start_date, end_date, type, note } = req.body;
+  if (!biomedica_id || !start_date || !end_date || !type) return res.status(400).json({ error: 'Biomédica, tipo e período são obrigatórios' });
+  if (!['folga', 'ferias'].includes(type)) return res.status(400).json({ error: 'Tipo inválido' });
+  if (end_date < start_date) return res.status(400).json({ error: 'A data fim deve ser igual ou posterior à data início' });
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO time_off (biomedica_id, start_date, end_date, type, note, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [biomedica_id, start_date, end_date, type, note || null, req.user.id]
+    );
+    return res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Erro ao registrar folga/férias' });
+  }
+});
+
+app.delete('/api/time-off/:id', auth, requireRole('admin', 'agendador'), async (req, res) => {
+  await pool.query('DELETE FROM time_off WHERE id=$1', [req.params.id]);
+  return res.json({ success: true });
+});
+
 // ── HEALTH ─────────────────────────────────────────────────────
 app.get('/health', async (req, res) => {
   try {

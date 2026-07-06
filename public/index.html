@@ -149,6 +149,11 @@ tr:hover td { background:var(--bg); }
 .cal-event { font-size:10px; padding:2px 5px; border-radius:4px; margin-bottom:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .cal-event.pending { background:rgba(245,158,11,.15); color:var(--yellow); }
 .cal-event.done    { background:rgba(16,185,129,.15); color:var(--green); }
+.cal-day.holiday  { background:rgba(201,144,64,.14); }
+.cal-day.time-off { background:rgba(138,125,112,.18); }
+.cal-flag { font-size:10px; font-weight:600; padding:2px 5px; border-radius:4px; margin-bottom:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cal-flag-holiday  { background:rgba(201,144,64,.3);  color:var(--yellow); }
+.cal-flag-timeoff  { background:rgba(138,125,112,.32); color:var(--muted); }
 
 /* ── MODAL ── */
 .modal-overlay {
@@ -515,6 +520,70 @@ tr:hover td { background:var(--bg); }
         </div>
         <div id="fech-status" style="font-size:13px;margin:12px 0;color:var(--muted)"></div>
         <button class="btn btn-primary" id="btn-concluir-dia" onclick="closeDailyAgenda()">Concluir agenda do dia</button>
+      </div>
+    </div>
+
+    <!-- PÁGINA: FOLGAS / FÉRIAS -->
+    <div class="page" id="page-folgas">
+      <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <div class="page-title">Folgas / Férias</div>
+          <div class="page-subtitle">Registre períodos de folga e férias das biomédicas — aparecem marcados no calendário</div>
+        </div>
+        <button class="btn btn-primary" onclick="openTimeOffModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nova Folga/Férias
+        </button>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Biomédica</th><th>Tipo</th><th>Início</th><th>Fim</th><th>Observação</th><th>Ações</th></tr>
+            </thead>
+            <tbody id="timeoff-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: NOVA FOLGA/FÉRIAS -->
+    <div class="modal-overlay" id="modal-timeoff">
+      <div class="modal" style="max-width:480px">
+        <div class="modal-header">
+          <span class="modal-title">Nova Folga/Férias</span>
+          <button class="modal-close" onclick="closeModal('modal-timeoff')">×</button>
+        </div>
+        <div id="modal-timeoff-alert"></div>
+        <div class="form-group">
+          <label class="form-label">Biomédica *</label>
+          <select class="form-select" id="timeoff-biomedica"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo *</label>
+          <select class="form-select" id="timeoff-type">
+            <option value="folga">Folga</option>
+            <option value="ferias">Férias</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Data início *</label>
+            <input class="form-input" type="date" id="timeoff-start"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Data fim *</label>
+            <input class="form-input" type="date" id="timeoff-end"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Observação</label>
+          <input class="form-input" type="text" id="timeoff-note" placeholder="Opcional"/>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="closeModal('modal-timeoff')">Cancelar</button>
+          <button class="btn btn-primary" onclick="saveTimeOff()">Salvar</button>
+        </div>
       </div>
     </div>
 
@@ -978,6 +1047,38 @@ function fmtMoney(v) {
   return 'R$ ' + parseFloat(v || 0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 function today() { return new Date().toISOString().slice(0,10); }
+function addDaysToDateStr(dateStr, n) {
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m-1, d));
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return dt.toISOString().slice(0,10);
+}
+function nationalHolidays(year) {
+  // Algoritmo de Gauss/Meeus para calcular a Páscoa (usada para a Sexta-feira Santa)
+  const a = year % 19, b = Math.floor(year/100), c = year % 100;
+  const d = Math.floor(b/4), e = b % 4, f = Math.floor((b+8)/25);
+  const g = Math.floor((b-f+1)/3), h = (19*a + b - d - g + 15) % 30;
+  const i = Math.floor(c/4), k = c % 4, l = (32 + 2*e + 2*i - h - k) % 7;
+  const m = Math.floor((a + 11*h + 22*l)/451);
+  const month = Math.floor((h + l - 7*m + 114)/31);
+  const day = ((h + l - 7*m + 114) % 31) + 1;
+  const easter = new Date(Date.UTC(year, month-1, day));
+  const goodFriday = new Date(easter);
+  goodFriday.setUTCDate(easter.getUTCDate() - 2);
+  const fmt = (dt) => dt.toISOString().slice(0,10);
+  return [
+    { date:`${year}-01-01`, name:'Confraternização Universal' },
+    { date:fmt(goodFriday), name:'Sexta-feira Santa' },
+    { date:`${year}-04-21`, name:'Tiradentes' },
+    { date:`${year}-05-01`, name:'Dia do Trabalho' },
+    { date:`${year}-09-07`, name:'Independência do Brasil' },
+    { date:`${year}-10-12`, name:'Nossa Sra. Aparecida' },
+    { date:`${year}-11-02`, name:'Finados' },
+    { date:`${year}-11-15`, name:'Proclamação da República' },
+    { date:`${year}-11-20`, name:'Consciência Negra' },
+    { date:`${year}-12-25`, name:'Natal' },
+  ];
+}
 function showAlert(el, msg, type='error') {
   const e = document.getElementById(el);
   e.className = `alert ${type}`;
@@ -1059,12 +1160,14 @@ function buildNav() {
     items.push({ id:'agendamentos', icon:'📋', label:'Agendamentos'  });
     items.push({ id:'calendario',   icon:'📅', label:'Calendário'    });
     items.push({ id:'fechamento',   icon:'🔒', label:'Fechamento do Dia' });
+    items.push({ id:'folgas',       icon:'🏖️', label:'Folgas / Férias' });
   } else { // admin
     items.push({ id:'painel',       icon:'📊', label:'Painel Gerencial' });
     items.push({ id:'agendamentos', icon:'📋', label:'Agendamentos'  });
     items.push({ id:'calendario',   icon:'📅', label:'Calendário'    });
     items.push({ id:'financeiro',   icon:'💰', label:'Financeiro'    });
     items.push({ id:'fechamento',   icon:'🔒', label:'Fechamento do Dia' });
+    items.push({ id:'folgas',       icon:'🏖️', label:'Folgas / Férias' });
     items.push({ id:'usuarios',     icon:'👥', label:'Usuários'      });
     items.push({ id:'planos',       icon:'🩺', label:'Planos'        });
     items.push({ id:'parametros',   icon:'⚙️', label:'Parâmetros'    });
@@ -1093,6 +1196,7 @@ function navigate(page) {
   if (page === 'planos') loadPlanos();
   if (page === 'parametros') loadParametros();
   if (page === 'fechamento') loadFechamento();
+  if (page === 'folgas') loadTimeOff();
   if (page === 'painel') loadPainel();
 
   if (window.innerWidth <= 768) {
@@ -1284,6 +1388,11 @@ async function renderCalendar() {
   let entries = [];
   try { entries = await apiFetch(url); } catch {}
 
+  let timeOffUrl = `/api/time-off?start=${start}&end=${end}`;
+  if (bid) timeOffUrl += `&biomedica_id=${bid}`;
+  let timeOffRows = [];
+  try { timeOffRows = await apiFetch(timeOffUrl); } catch {}
+
   // index entries by date (normalize ISO timestamp to YYYY-MM-DD)
   const byDate = {};
   entries.forEach(e => {
@@ -1291,6 +1400,20 @@ async function renderCalendar() {
     if (!byDate[dateKey]) byDate[dateKey] = [];
     byDate[dateKey].push(e);
   });
+
+  // index folgas/férias por dia (expande o intervalo dentro do mês visível)
+  const timeOffByDate = {};
+  timeOffRows.forEach(t => {
+    const s = t.start_date.slice(0,10) < start ? start : t.start_date.slice(0,10);
+    const stop = t.end_date.slice(0,10) > end ? end : t.end_date.slice(0,10);
+    for (let cur = s; cur <= stop; cur = addDaysToDateStr(cur, 1)) {
+      if (!timeOffByDate[cur]) timeOffByDate[cur] = [];
+      timeOffByDate[cur].push(t);
+    }
+  });
+
+  const holidayByDate = {};
+  nationalHolidays(calYear).forEach(h => { holidayByDate[h.date] = h.name; });
 
   const grid = document.getElementById('cal-grid');
   const days = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
@@ -1306,14 +1429,37 @@ async function renderCalendar() {
   // current month
   for (let d=1; d<=last.getDate(); d++) {
     const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const isToday = dateStr === todayStr;
-    const evts    = byDate[dateStr] || [];
+    const isToday   = dateStr === todayStr;
+    const evts      = byDate[dateStr] || [];
+    const holiday   = holidayByDate[dateStr];
+    const dayOff    = timeOffByDate[dateStr] || [];
+
     let evtHtml = evts.slice(0,3).map(e =>
       `<div class="cal-event ${e.status}" title="${e.patient}">${fmtTime(e.time)} ${e.patient}</div>`
     ).join('');
     if (evts.length > 3) evtHtml += `<div style="font-size:10px;color:var(--muted)">+${evts.length-3} mais</div>`;
-    html += `<div class="cal-day${isToday?' today':''}" onclick="showDayDetail('${dateStr}',${JSON.stringify(evts).replace(/"/g,'&quot;')})">
+
+    const holidayHtml = holiday ? `<div class="cal-flag cal-flag-holiday" title="Feriado nacional: ${holiday}">🎉 ${holiday}</div>` : '';
+
+    let timeOffHtml = '';
+    if (dayOff.length) {
+      timeOffHtml = dayOff.slice(0,2).map(t => {
+        const icon  = t.type === 'ferias' ? '🏖️' : '😴';
+        const label = t.type === 'ferias' ? 'Férias' : 'Folga';
+        return `<div class="cal-flag cal-flag-timeoff" title="${label}: ${t.biomedica_name}${t.note ? ' — '+t.note : ''}">${icon} ${t.biomedica_name}</div>`;
+      }).join('');
+      if (dayOff.length > 2) timeOffHtml += `<div style="font-size:10px;color:var(--muted)">+${dayOff.length-2} mais</div>`;
+    }
+
+    const dayClasses = ['cal-day'];
+    if (isToday) dayClasses.push('today');
+    if (holiday) dayClasses.push('holiday');
+    if (dayOff.length) dayClasses.push('time-off');
+
+    html += `<div class="${dayClasses.join(' ')}" onclick="showDayDetail('${dateStr}',${JSON.stringify(evts).replace(/"/g,'&quot;')})">
       <div class="cal-day-num">${d}</div>
+      ${holidayHtml}
+      ${timeOffHtml}
       ${evtHtml}
     </div>`;
   }
@@ -2376,6 +2522,77 @@ async function closeDailyAgenda() {
   try {
     await apiFetch(`/api/daily-agenda/${date}/close`, { method:'POST' });
     loadFechamento();
+  } catch(e) { alert(e.message); }
+}
+
+// ── FOLGAS / FÉRIAS ──────────────────────────────────────────────
+async function loadTimeOff() {
+  try {
+    const rows = await apiFetch('/api/time-off');
+    renderTimeOffTable(rows);
+  } catch(e) { console.error(e); }
+}
+
+function renderTimeOffTable(rows) {
+  const tbody = document.getElementById('timeoff-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Nenhuma folga/férias registrada</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.biomedica_name}</td>
+      <td>${r.type === 'ferias' ? '🏖️ Férias' : '😴 Folga'}</td>
+      <td>${fmtDate(r.start_date?.slice?.(0,10))}</td>
+      <td>${fmtDate(r.end_date?.slice?.(0,10))}</td>
+      <td style="font-size:12px">${r.note || '—'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteTimeOff(${r.id})">🗑️</button></td>
+    </tr>
+  `).join('');
+}
+
+function openTimeOffModal() {
+  document.getElementById('timeoff-biomedica').innerHTML = biomedicas.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+  document.getElementById('timeoff-type').value  = 'folga';
+  document.getElementById('timeoff-start').value = today();
+  document.getElementById('timeoff-end').value   = today();
+  document.getElementById('timeoff-note').value  = '';
+  document.getElementById('modal-timeoff-alert').className = 'alert';
+  openModal('modal-timeoff');
+}
+
+async function saveTimeOff() {
+  const body = {
+    biomedica_id: document.getElementById('timeoff-biomedica').value,
+    type:         document.getElementById('timeoff-type').value,
+    start_date:   document.getElementById('timeoff-start').value,
+    end_date:     document.getElementById('timeoff-end').value,
+    note:         document.getElementById('timeoff-note').value.trim(),
+  };
+  if (!body.biomedica_id || !body.start_date || !body.end_date) {
+    showAlert('modal-timeoff-alert', 'Preencha biomédica, data início e data fim');
+    return;
+  }
+  if (body.end_date < body.start_date) {
+    showAlert('modal-timeoff-alert', 'A data fim deve ser igual ou posterior à data início');
+    return;
+  }
+  try {
+    await apiFetch('/api/time-off', { method:'POST', body: JSON.stringify(body) });
+    closeModal('modal-timeoff');
+    loadTimeOff();
+    renderCalendar();
+  } catch(e) {
+    showAlert('modal-timeoff-alert', e.message);
+  }
+}
+
+async function deleteTimeOff(id) {
+  if (!confirm('Remover esta folga/férias?')) return;
+  try {
+    await apiFetch(`/api/time-off/${id}`, { method:'DELETE' });
+    loadTimeOff();
+    renderCalendar();
   } catch(e) { alert(e.message); }
 }
 
